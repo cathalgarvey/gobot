@@ -56,11 +56,12 @@ func (a *BebopDriver) adaptor() *BebopAdaptor {
 // This spins out a goroutine to read telemetry from the adaptor and post
 // events;
 func (a *BebopDriver) Start() (errs []error) {
-	go func(a *BebopDriver){
+	go func(a *BebopDriver) {
 		T := a.connection.Telemetry()
 		for {
 			select {
-				case e <- T: {
+			case e <- T:
+				{
 					// e is an anon struct{Title string, Data []byte}
 					// If the event is unknown this will return an error, but
 					// we don't care right now. Loads of events are still "uknown".

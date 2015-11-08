@@ -20,7 +20,7 @@ func TestBebopAdaptorConnect(t *testing.T) {
 	a := initTestBebopAdaptor()
 	gobot.Assert(t, len(a.Connect()), 0)
 
-	a.connect = func(a *BebopAdaptor) (error) {
+	a.connect = func(a *BebopAdaptor) error {
 		return errors.New("connection error")
 	}
 	gobot.Assert(t, a.Connect()[0], errors.New("connection error"))
