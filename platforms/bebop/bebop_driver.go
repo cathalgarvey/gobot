@@ -20,7 +20,24 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 		connection: connection,
 		Eventer:    gobot.NewEventer(),
 	}
+	// Gross state telemetry; important enough that this enum got broken out. :)
+	d.AddEvent("landed")
+	d.AddEvent("takingoff")
+	d.AddEvent("hovering")
 	d.AddEvent("flying")
+	d.AddEvent("landing")
+	d.AddEvent("emergency")
+	// Introspective telemetry
+	d.AddEvent("flattrim")
+	d.AddEvent("battery")
+	d.AddEvent("autotakeoffmode")
+	d.AddEvent("navigatehomestate")
+	d.AddEvent("alertstate")
+	// Extrospective telemetry
+	d.AddEvent("gps")
+	d.AddEvent("speed")
+	d.AddEvent("attitude")
+	d.AddEvent("altitude")
 	return d
 }
 
@@ -35,8 +52,23 @@ func (a *BebopDriver) adaptor() *BebopAdaptor {
 	return a.Connection().(*BebopAdaptor)
 }
 
-// Start starts the BebopDriver
+// Start starts the BebopDriver.
+// This spins out a goroutine to read telemetry from the adaptor and post
+// events;
 func (a *BebopDriver) Start() (errs []error) {
+	go func(a *BebopDriver){
+		T := a.connection.Telemetry()
+		for {
+			select {
+				case e <- T: {
+					// e is an anon struct{Title string, Data []byte}
+					// If the event is unknown this will return an error, but
+					// we don't care right now. Loads of events are still "uknown".
+					gobot.Publish(a.Event(e.Title), e.Data)
+				}
+			}
+		}
+	}(a)
 	return
 }
 

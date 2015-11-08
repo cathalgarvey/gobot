@@ -22,6 +22,9 @@ type drone interface {
 	Stop() error
 	Connect() error
 	Video() chan []byte
+	// Returns a channel of events as returned by the device, with string titles.
+	// Titles are friendly in some cases, and SDK allcaps identifiers in others.
+  Telemetry() chan struct{Title string, Data []byte}
 	StartRecording() error
 	StopRecording() error
 	HullProtection(protect bool) error

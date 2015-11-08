@@ -166,6 +166,9 @@ type Bebop struct {
 	d2cClient             *net.UDPConn
 	discoveryClient       *net.TCPConn
 	networkFrameGenerator func(*bytes.Buffer, byte, byte) *bytes.Buffer
+  // Buffered. When full, frames are abandoned.
+  telemetry             chan struct{Title string, Data []byte}
+	endTelemetry					chan struct{}
 	video                 chan []byte
 	writeChan             chan []byte
 }
@@ -188,6 +191,8 @@ func New() *Bebop {
 		},
 		tmpFrame:  tmpFrame{},
 		video:     make(chan []byte),
+		telemetry: make(chan struct{Title string, Data []byte}, 10),
+		endTelemetry: make(chan struct{}),
 		writeChan: make(chan []byte),
 	}
 }
@@ -430,7 +435,7 @@ func (b *Bebop) Stop() error {
 		Gaz:   0,
 		Psi:   0,
 	}
-
+  close(b.endTelemetry)
 	return nil
 }
 
@@ -506,31 +511,40 @@ func (b *Bebop) createPong(frame NetworkFrame) *bytes.Buffer {
 	)
 }
 
+// For frames requiring an ACK, this generates and sends them. For media frames,
+// processing of the video is handled as a side-effect within the createARStreamACK
+// method. For other frames, handling is passed to Bebop.handleIncomingDataFrame
+// (as a goroutine).
 func (b *Bebop) packetReceiver(buf []byte) {
 	frame := NewNetworkFrame(buf)
 
-	//
-	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
-	//
-	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK) {
-		ack := b.createAck(frame).Bytes()
-		_, err := b.write(ack)
+  switch {
+		//
+		// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
+		//
+		case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK): {
+			ack := b.createAck(frame).Bytes()
+			_, err := b.write(ack)
 
-		if err != nil {
-			fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK", err)
-		}
+			if err != nil {
+				fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK", err)
+			}
+			go b.handleIncomingDataFrame(frame)
+  	}
+		case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY) &&
+			frame.Id == int(BD_NET_DC_VIDEO_DATA_ID): {
+				arstreamFrame := NewARStreamFrame(frame.Data)
+
+				ack := b.createARStreamACK(arstreamFrame).Bytes()
+				_, err := b.write(ack)
+				if err != nil {
+					fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY", err)
+				}
+			}
 	}
 
-	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY) &&
-		frame.Id == int(BD_NET_DC_VIDEO_DATA_ID) {
-
-		arstreamFrame := NewARStreamFrame(frame.Data)
-
-		ack := b.createARStreamACK(arstreamFrame).Bytes()
-		_, err := b.write(ack)
-		if err != nil {
-			fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY", err)
-		}
+  if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == BD_NET_DC_EVENT_ID {
+		go b.handleIncomingDataFrame(frame)
 	}
 
 	//
@@ -544,6 +558,11 @@ func (b *Bebop) packetReceiver(buf []byte) {
 		}
 	}
 }
+
+func (b *Bebop) Telemetry() chan struct{Title string, Data []byte} {
+	return self.telemetry
+}
+
 
 func (b *Bebop) StartRecording() error {
 	buf := b.videoRecord(ARCOMMANDS_ARDRONE3_MEDIARECORD_VIDEO_RECORD_START)
