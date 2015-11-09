@@ -3,6 +3,7 @@ package bebop
 import (
 	"github.com/hybridgroup/gobot"
 	"github.com/hybridgroup/gobot/platforms/bebop/client"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 var _ gobot.Adaptor = (*BebopAdaptor)(nil)
@@ -24,10 +25,11 @@ type drone interface {
 	Video() chan []byte
 	// Returns a channel of events as returned by the device, with string titles.
 	// Titles are friendly in some cases, and SDK allcaps identifiers in others.
-	Telemetry() chan struct {
-		Title string
-		Data  []byte
-	}
+	// Returns a channel of JSON events as returned by the device, each of which
+	// will have a field "TITLE" (corresponding to a string) as well as other data
+	// fields according to event type. The TITLE field is taken as the event Name
+	// and dispatched to the gobot event handler.
+	Telemetry() chan bbtelem.TelemetryPacket
 	StartRecording() error
 	StopRecording() error
 	HullProtection(protect bool) error
@@ -63,6 +65,10 @@ func (a *BebopAdaptor) Connect() (errs []error) {
 		return []error{err}
 	}
 	return
+}
+
+func (a *BebopAdaptor) Telemetry() chan bbtelem.TelemetryPacket {
+	return a.drone.Telemetry()
 }
 
 // Finalize terminates the connection to the ardrone

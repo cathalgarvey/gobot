@@ -2,6 +2,9 @@ package bebop
 
 import (
 	"github.com/hybridgroup/gobot"
+//	"github.com/hybridgroup/gobot/platforms/bebop/client"
+
+//	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 var _ gobot.Driver = (*BebopDriver)(nil)
@@ -9,8 +12,10 @@ var _ gobot.Driver = (*BebopDriver)(nil)
 // BebopDriver is gobot.Driver representation for the Bebop
 type BebopDriver struct {
 	name       string
-	connection gobot.Connection
+	// connection gobot.Connection
+  connection *BebopAdaptor  // Superset of gobot.Connection, so should work?
 	gobot.Eventer
+	endTelemetry chan struct{}
 }
 
 // NewBebopDriver creates an BebopDriver with specified name.
@@ -19,6 +24,7 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 		name:       name,
 		connection: connection,
 		Eventer:    gobot.NewEventer(),
+		endTelemetry: make(chan struct{}),
 	}
 	// Gross state telemetry; important enough that this enum got broken out. :)
 	d.AddEvent("landed")
@@ -60,12 +66,16 @@ func (a *BebopDriver) Start() (errs []error) {
 		T := a.connection.Telemetry()
 		for {
 			select {
-			case e <- T:
+			case t := <- T:
 				{
-					// e is an anon struct{Title string, Data []byte}
-					// If the event is unknown this will return an error, but
-					// we don't care right now. Loads of events are still "uknown".
-					gobot.Publish(a.Event(e.Title), e.Data)
+					// t is a bbtelem.TelemetryPacket object which may contain error, JSON payload,
+					// and/or commentary data in addition to a "Title" property.
+					// "Title" is the name of the event to send the JSON payload along.
+					gobot.Publish(a.Event(t.Title), t.Payload)
+				}
+			case <- a.endTelemetry:
+				{
+					return
 				}
 			}
 		}
@@ -141,6 +151,7 @@ func (a *BebopDriver) CounterClockwise(speed int) {
 // Stop makes the drone to hover in place.
 func (a *BebopDriver) Stop() {
 	a.adaptor().drone.Stop()
+	close(a.endTelemetry)
 }
 
 // Video returns a channel which raw video frames will be broadcast on

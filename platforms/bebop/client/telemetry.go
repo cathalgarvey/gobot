@@ -3,22 +3,25 @@ package client
 import (
 	"bytes"
 	"errors"
+	"strconv"
 	"encoding/json"
 	"encoding/binary"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
+
+func (b *Bebop) Telemetry() chan bbtelem.TelemetryPacket {
+	return b.telemetry
+}
 
 // Attempts to send data with a given title across the telemetry channel. If the
 // chan is full then the default simply drops the data.
-func (b *Bebop) sendTelemetry(title string, data []byte) {
+func (b *Bebop) dispatchTelemetry(telem *bbtelem.TelemetryPacket) {
 	select {
 	case <-b.endTelemetry:
 		{
 			return
 		}
-	case b.telemetry <- struct {
-		Title string
-		Data  []byte
-	}{Title: title, Data: data}:
+	case b.telemetry <- *telem:
 		{
 			return
 		}
@@ -30,21 +33,38 @@ func (b *Bebop) sendTelemetry(title string, data []byte) {
 	}
 }
 
+// Make a telemetry object and ship to dispatchTelemetry
+func (b *Bebop) sendTelemetry(title string, payload []byte) {
+  b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+		Title: title,
+		Payload: payload,
+	})
+}
+
 // Shortcut method for sending a title with an empty JSON object.
 func (b *Bebop) sendEmptyTelemetry(title string) {
-	sendTelementry(title, []byte("{}"))
+	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+		Title: title,
+	})
 }
 
 // Shortcut method for sending unknown data embedded in a JSON object as {"data": "<base64>"}
 func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) {
-	payload, _ := json.Marshal(struct{data []byte; comment string}{data: data, comment: comment})
-	sendTelemetry("unknown", payload)
+	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+		Title: "unknown",
+		Comment: comment,
+		Payload: data,
+	})
 }
 
 // Shortcut method for issuing errors through Telemetry
 func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) {
-	payload, _ := json.Marshal(struct{data []byte; comment, error string}{data: data, comment: comment, error: err.Error()})
-	sendTelemetry("error", payload)
+	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+		Title: "error",
+		Error: err,
+		Comment: comment,
+		Payload: data,
+	})
 }
 
 // Common task: Decode a 4-byte enum, then use it to index some strings representing enum value
@@ -67,66 +87,65 @@ func decodeEnum(raw []byte, vals []string) (string, error) {
 func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFrame) {
 	switch commandId {
 		case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_PICTUREFORMATCHANGED: {
-		  types, err := decodeEnum(frame.data[4:8], []string{"raw", "jpeg", "snapshot"})
+		  types, err := decodeEnum(frame.Data[4:8], []string{"raw", "jpeg", "snapshot"})
 			if err == nil {
-				payload, _ := json.Marshal(struct{type string}{type: types})
-				go sendTelemetry("pictureformatchanged", payload)
+				payload, _ := json.Marshal(struct{types string `json:"type"`}{types: types})
+				go b.sendTelemetry("pictureformatchanged", payload)
 			} else {
-				go sendRuntimeError("Error in pictureformatchanged handler.", err, frame.data)
+				go b.sendRuntimeError("Error in pictureformatchanged handler.", err, frame.Data)
 			}
 		}
 		case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_AUTOWHITEBALANCECHANGED: {
-			types, err := decodeEnum(frame.data[4:8], []string{"auto", "tungsten", "daylight", "cloudy", "cool_white"})
+			types, err := decodeEnum(frame.Data[4:8], []string{"auto", "tungsten", "daylight", "cloudy", "cool_white"})
 			if err == nil {
-				payload, _ := json.Marshal(struct{type string}{type: types})
-				go sendTelemetry("autowhitebalancechanged", payload)
+				payload, _ := json.Marshal(struct{types string `json:type`}{types: types})
+				go b.sendTelemetry("autowhitebalancechanged", payload)
 			} else {
-				go sendRuntimeError("Error in autowhitebalancechanged handler.", err, frame.data)
+				go b.sendRuntimeError("Error in autowhitebalancechanged handler.", err, frame.Data)
 			}
 		}
     // Handle Exposition / Saturation identically except for telemetry dispatch name.
 		case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_EXPOSITIONCHANGED,
 				 ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_SATURATIONCHANGED: {
 			var telemdata struct{value, min, max float32}
-			binary.Read(bytes.NewReader(frame.data[ 4: 16]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[ 4: 16]), binary.LittleEndian, &telemdata)
 			payload, err := json.Marshal(telemdata)
 			if err != nil {
-				go sendRuntimeError("Error in Saturation/Exposition telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in Saturation/Exposition telemetry handler", err, frame.Data)
 			}
 			switch commandId {
-			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_EXPOSITIONCHANGED: {
-				go sendTelemetry("expositionchanged", payload)
-			}
-			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_SATURATIONCHANGED: {
-			  go sendTelemetry("saturationchanged", payload)
+			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_EXPOSITIONCHANGED:
+				{
+					go b.sendTelemetry("expositionchanged", payload)
+				}
+			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_SATURATIONCHANGED:
+				{
+			  	go b.sendTelemetry("saturationchanged", payload)
+				}
 			}
 		}
 		case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_TIMELAPSECHANGED: {
-			var (
-				enabled byte
-				interval, minInterval, maxInterval float32
-			)
 			var telemdata struct{enabled bool; interval, minInterval, maxInterval float32}
-			binary.Read(bytes.NewReader(frame.data[ 4: 17]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[ 4: 17]), binary.LittleEndian, &telemdata)
 			payload, err := json.Marshal(telemdata)
 			if err != nil {
-				go sendRuntimeError("Error in timelapsechanged telemetry", err, frame.data)
+				go b.sendRuntimeError("Error in timelapsechanged telemetry", err, frame.Data)
 				return
 			}
-			go sendTelemetry("timelapsechanged", payload)
+			go b.sendTelemetry("timelapsechanged", payload)
 		}
 		case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_VIDEOAUTORECORDCHANGED: {
 			var telemdata struct{enabled bool; mass_storage_id uint8}
-			binary.Read(bytes.NewReader(frame.data[ 4: 6]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[ 4: 6]), binary.LittleEndian, &telemdata)
 			payload, err := json.Marshal(telemdata)
 			if err != nil {
-				go sendRuntimeError("Error in videoautorecordchanged telemetry", err, frame.data)
+				go b.sendRuntimeError("Error in videoautorecordchanged telemetry", err, frame.Data)
 				return
 			}
-			go sendTelemetry("videoautorecordchanged", payload)
+			go b.sendTelemetry("videoautorecordchanged", payload)
 		}
 		default: {
-			go sendUnknownTelemetry("Unknown picture settings commandId: "+strconv.Itoa(int(commandId)), frame.data)
+			go b.sendUnknownTelemetry("Unknown picture settings commandId: "+strconv.Itoa(int(commandId)), frame.Data)
 		}
 	}
 }
@@ -138,24 +157,24 @@ func (b *Bebop) handleNetworkSettingsStateFrame(commandId byte, frame *NetworkFr
 		// Appears to be simply feedback for when the client issues a corresponding
 		// instruction; returns settings to confirm?
 		{
-			wftypestr, err := decodeEnum(frame.data[4:8], []string{"auto_all", "auto_2_4ghz", "auto_5ghz", "all"})
+			wftypestr, err := decodeEnum(frame.Data[4:8], []string{"auto_all", "auto_2_4ghz", "auto_5ghz", "all"})
 			if err != nil {
-				go sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.Data)
 				return
 			}
-			wfbandstr, err := decodeEnum(frame.data[8:12], []string{"2_4ghz", "5ghz", "all"})
+			wfbandstr, err := decodeEnum(frame.Data[8:12], []string{"2_4ghz", "5ghz", "all"})
 			if err != nil {
-				go sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.Data)
 				return
 			}
 			var	channel uint8
-			binary.Read(bytes.NewReader(frame.data[12:13]), binary.LittleEndian, &channel)
-			payload, _ := json.Marshal(struct{type, wfband string; channel int}{type:wftypestr, band:wfbandstr, channel: int(channel)})
-			go sendTelemetry("networksettingsstate", payload)
+			binary.Read(bytes.NewReader(frame.Data[12:13]), binary.LittleEndian, &channel)
+			payload, _ := json.Marshal(struct{types string `json:"type"`; band string; channel int}{types:wftypestr, band:wfbandstr, channel: int(channel)})
+			go b.sendTelemetry("networksettingsstate", payload)
 		}
 	default:
 		{
-			go sendUnknownTelemetry("Unknown Network commandId: "+strconv.Itoa(int(commandId)), frame.data)
+			go b.sendUnknownTelemetry("Unknown Network commandId: "+strconv.Itoa(int(commandId)), frame.Data)
 		}
 	}
 }
@@ -168,112 +187,112 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLATTRIMCHANGED:
 		{
 			// No args.
-			go sendEmptyTelemetry("flattrim")
+			go b.sendEmptyTelemetry("flattrim")
 		}
 	// Flying state changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLYINGSTATECHANGED:
 		{
 			var flyingstate int
-			binary.Read(bytes.NewReader(frame.data[4:8]), binary.LittleEndian, &flyingstate)
+			binary.Read(bytes.NewReader(frame.Data[4:8]), binary.LittleEndian, &flyingstate)
 			// These are kind of a big deal so send them as separate events, unlike other enums
 			switch byte(flyingstate) {
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_LANDED:
 				{
-					go sendEmptyTelemetry("landed")
+					go b.sendEmptyTelemetry("landed")
 				}
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_TAKINGOFF:
 				{
-					go sendEmptyTelemetry("takingoff")
+					go b.sendEmptyTelemetry("takingoff")
 				}
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_HOVERING:
 				{
-					go sendEmptyTelemetry("hovering")
+					go b.sendEmptyTelemetry("hovering")
 				}
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_FLYING:
 				{
-					go sendEmptyTelemetry("flying")
+					go b.sendEmptyTelemetry("flying")
 				}
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_LANDING:
 				{
-					go sendEmptyTelemetry("landing")
+					go b.sendEmptyTelemetry("landing")
 				}
 			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_EMERGENCY:
 				{
-					go sendEmptyTelemetry("emergency")
+					go b.sendEmptyTelemetry("emergency")
 				}
 			}
 		}
 	// Alert State Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ALERTSTATECHANGED:
 		{
-			statestr, err := decodeEnum(frame.data[4:8], []string{"none", "cut_out", "critical_battery", "low_battery", "too_much_angle"})
+			statestr, err := decodeEnum(frame.Data[4:8], []string{"none", "cut_out", "critical_battery", "low_battery", "too_much_angle"})
 			if err != nil {
-				go sendRuntimeError("Error in ALERTSTATECHANGED telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in ALERTSTATECHANGED telemetry handler", err, frame.Data)
 				return
 			}
 			payload, _ := json.Marshal(struct{ state string }{state: statestr})
-			go sendTelemetry("alertstate", payload)
+			go b.sendTelemetry("alertstate", payload)
 		}
 	// Navigate Home State Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_NAVIGATEHOMESTATECHANGED:
 		{
-		  statestr, err := decodeEnum(frame.data[4:8], []string{"available", "inProgress", "unavailable", "pending"})
+		  statestr, err := decodeEnum(frame.Data[4:8], []string{"available", "inProgress", "unavailable", "pending"})
 			if err != nil {
-				go sendRuntimeError("Error in NAVIGATEHOMESTATECHANGED telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in NAVIGATEHOMESTATECHANGED telemetry handler", err, frame.Data)
 				return
 			}
-			reasonstr, err := decodeEnum(frame.data[8:12], []string{"userRequest", "connectionLost", "lowBattery", "finished", "stopped", "disabled", "enabled"})
+			reasonstr, err := decodeEnum(frame.Data[8:12], []string{"userRequest", "connectionLost", "lowBattery", "finished", "stopped", "disabled", "enabled"})
 			if err != nil {
-				go sendRuntimeError("Error in NAVIGATEHOMESTATECHANGED telemetry handler", err, frame.data)
+				go b.sendRuntimeError("Error in NAVIGATEHOMESTATECHANGED telemetry handler", err, frame.Data)
 				return
 			}
 			payload, _ := json.Marshal(struct{ state, reason string }{state: statestr, reason: reasonstr})
-			go sendTelemetry("navigatehomestate", payload)
+			go b.sendTelemetry("navigatehomestate", payload)
 		}
 	// Position (GPS)
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_POSITIONCHANGED:
 		{
 		  var telemdata struct{Lat, Lon, Alt float64}
-			binary.Read(bytes.NewReader(frame.data[4:28]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:28]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
-			go sendTelemetry("gps", payload)
+			go b.sendTelemetry("gps", payload)
 		}
 	// Speed Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_SPEEDCHANGED:
 		{
 			var telemdata struct{speedX, speedY, speedZ float64}
-			binary.Read(bytes.NewReader(frame.data[4:28]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:28]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
-			go sendTelemetry("speed", payload)
+			go b.sendTelemetry("speed", payload)
 		}
 	// Attitude Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ATTITUDECHANGED:
 		{
 			var telemdata struct{roll, pitch, yaw float32}
-			binary.Read(bytes.NewReader(frame.data[4:16]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
-			go sendTelemetry("attitude", payload)
+			go b.sendTelemetry("attitude", payload)
 		}
 	// Auto Takeoff Mode Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_AUTOTAKEOFFMODECHANGED:
 		{
 			var telemdata struct{state bool}
-			binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
-			go sendTelemetry("autotakeoffmode", payload)
+			go b.sendTelemetry("autotakeoffmode", payload)
 		}
 	// Altitude Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ALTITUDECHANGED:
 		{
 			var telemdata struct{altitude float64}
-			binary.Read(bytes.NewReader(frame.data[4:12]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:12]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
-			go sendTelemetry("altitude", payload)
+			go b.sendTelemetry("altitude", payload)
 		}
 	// End of PilotingState cases
 	default:
 		{
-		  go sendUnknownTelemetry("Unknown Piloting State", frame.data)
+		  go b.sendUnknownTelemetry("Unknown Piloting State", frame.Data)
 		}
 	}
 }
@@ -284,7 +303,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 		{
 			// This uint8 is a percentage acc. to docs, should be 0-100?
 			var telemdata struct{battery uint8}
-			binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
 			go b.sendTelemetry("battery", payload)
 		}
@@ -292,10 +311,9 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 		{
 			var (
 				mass_storage_id uint8
-				mass_stoage_name string
 			)
-			binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &mass_storage_id)
-			mass_storage_name = string(frame.data[5:])  // ? Encoding? Length? Huh?
+			binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &mass_storage_id)
+			mass_storage_name := string(frame.Data[5:])  // ? Encoding? Length? Huh?
 			payload, _ := json.Marshal(struct{mass_storage_id uint8; name string}{mass_storage_id: mass_storage_id, name: mass_storage_name})
 			go b.sendTelemetry("massstorage", payload)
 		}
@@ -303,21 +321,21 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 		// Information on a particular volume? Volunteered, or in response to a query?
 		{
 			var telemdata struct{mass_storage_id uint8; size, used_size uint32; plugged, full, internal bool}
-			binary.Read(bytes.NewReader(frame.data[4:72]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:72]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
 			go b.sendTelemetry("massstorageinfo", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTDATECHANGED:
 		// Date in ISO-8601
 		{
-			dates := string(frame.data[4:])  // Parse to real time object? ISO-8601
+			dates := string(frame.Data[4:])  // Parse to real time object? ISO-8601
 			payload, _ := json.Marshal(struct{date string}{date: dates})
 			go b.sendTelemetry("currentdate", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTTIMECHANGED:
 		// Time in ISO-8601
 		{
-			times := string(frame.data[4:])  // Parse to real time object? ISO-8601
+			times := string(frame.Data[4:])  // Parse to real time object? ISO-8601
 			payload, _ := json.Marshal(struct{time string}{time: times})
 			go b.sendTelemetry("currenttime", payload)
 		}
@@ -325,31 +343,48 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 		// Remaining space on volume, with estimate of photo space/recording time?
 		{
 			var telemdata struct{free_space uint32; rec_time uint16; photo_remaining uint32}
-			binary.Read(bytes.NewReader(frame.data[4:80]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:80]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
 			go b.sendTelemetry("massstorageinforemaining", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_WIFISIGNALCHANGED:
 		{
 			var telemdata struct{rssi int16}  // in dbm
-			binary.Read(bytes.NewReader(frame.data[4:20]), binary.LittleEndian, &telemdata)
+			binary.Read(bytes.NewReader(frame.Data[4:20]), binary.LittleEndian, &telemdata)
 			payload, _ := json.Marshal(telemdata)
 			go b.sendTelemetry("wifisignal", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_SENSORSSTATESLISTCHANGED:
 		{
 			var sensorState bool
-			sensorName, err := decodeEnum(frame.data[4:8], []string{"IMU", "barometer", "ultrasound", "GPS", "magnetometer", "vertical_camera"})
+			sensorName, err := decodeEnum(frame.Data[4:8], []string{"IMU", "barometer", "ultrasound", "GPS", "magnetometer", "vertical_camera"})
 			if err != nil {
-				go sendRuntimeError("Error processing sensor state telemetry", err, frame)
+				go b.sendRuntimeError("Error processing sensor state telemetry", err, frame.Data)
 				return
 			}
 			payload, _ := json.Marshal(struct{sensorName string; sensorState bool}{sensorName: sensorName, sensorState: sensorState})
 			go b.sendTelemetry("sensorstates", payload)
 		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_PRODUCTMODEL:
+		// This appears to be irrelevant to the Bebop but it's in "common"!
+		{
+			modelstr, err := decodeEnum(frame.Data[4:8], []string{"RS_TRAVIS", "RS_MARS", "RS_SWAT", "RS_MCLANE", "RS_BLAZE", "RS_ORAK", "RS_NEWZ", "JS_DIESEL", "JS_BUZZ", "JS_MAX", "JS_JETT", "JS_TUKTUK"})
+			if err != nil {
+				go b.sendRuntimeError("Error processing drone model telemetry", err, frame.Data)
+				return
+			}
+			payload, _ := json.Marshal(struct{model string}{model: modelstr})
+			go b.sendTelemetry("dronemodel", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_COUNTRYLISTKNOWN:
+		{
+			ccodes := string(frame.Data[4:])
+			payload, _ := json.Marshal(struct{countryCodes string}{ccodes})
+			go b.sendTelemetry("countrycodes", payload)
+		}
 	default:
 		{
-			go sendUnknownTelemetry("Unknown/Unhandled COMMONSTATE commandId: "+strconv.Itoa(int(commandId)), frame.data)
+			go b.sendUnknownTelemetry("Unknown/Unhandled COMMONSTATE commandId: "+strconv.Itoa(int(commandId)), frame.Data)
 		}
 	}
 }
@@ -363,9 +398,9 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		commandId      byte
 		commandId16    uint16
 	)
-	binary.Read(bytes.NewReader(frame.data[0:1]), binary.LittleEndian, &commandProject)
-	binary.Read(bytes.NewReader(frame.data[1:2]), binary.LittleEndian, &commandClass)
-	binary.Read(bytes.NewReader(frame.data[2:4]), binary.LittleEndian, &commandId)
+	binary.Read(bytes.NewReader(frame.Data[0:1]), binary.LittleEndian, &commandProject)
+	binary.Read(bytes.NewReader(frame.Data[1:2]), binary.LittleEndian, &commandClass)
+	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId)
 	commandId = byte(commandId16)
 
 	switch commandProject {
@@ -378,7 +413,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 				}
 			default:
 				{
-					go sendUnknownTelemetry("Unknown/Unhandled common project commandClass: "+strconv.Itoa(int(commandClass)), frame.data)
+					go b.sendUnknownTelemetry("Unknown/Unhandled common project commandClass: "+strconv.Itoa(int(commandClass)), frame.Data)
 				}
 			}
 		}
@@ -405,7 +440,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 				}
 			default:
 				{
-					go sendUnknownTelemetry("Unknown/Unhandled ARDRONE3 command Class: "+strconv.Itoa(int(commandClass)), frame.data)
+					go b.sendUnknownTelemetry("Unknown/Unhandled ARDRONE3 command Class: "+strconv.Itoa(int(commandClass)), frame.Data)
 				}
 			}
 		}
@@ -413,7 +448,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		{
 			// This shouldn't happen, as there are only two expected projects?
 			// Post an unknown telemetry event, may help to discover stuff for future usage.
-			go sendUnknownTelemetry("Unknown Project: "+strconv.Itoa(int(commandProject)), frame.data)
+			go b.sendUnknownTelemetry("Unknown Project: "+strconv.Itoa(int(commandProject)), frame.Data)
 		}
 	}
 }

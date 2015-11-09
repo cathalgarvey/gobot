@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 func validatePitch(val int) int {
@@ -167,10 +168,7 @@ type Bebop struct {
 	discoveryClient       *net.TCPConn
 	networkFrameGenerator func(*bytes.Buffer, byte, byte) *bytes.Buffer
 	// Buffered. When full, frames are abandoned.
-	telemetry chan struct {
-		Title string
-		Data  []byte
-	}
+	telemetry chan bbtelem.TelemetryPacket
 	endTelemetry chan struct{}
 	video        chan []byte
 	writeChan    chan []byte
@@ -194,10 +192,7 @@ func New() *Bebop {
 		},
 		tmpFrame: tmpFrame{},
 		video:    make(chan []byte),
-		telemetry: make(chan struct {
-			Title string
-			Data  []byte
-		}, 10),
+		telemetry: make(chan bbtelem.TelemetryPacket, 10),
 		endTelemetry: make(chan struct{}),
 		writeChan:    make(chan []byte),
 	}
@@ -536,7 +531,7 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			if err != nil {
 				fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK", err)
 			}
-			go b.handleIncomingDataFrame(frame)
+			go b.handleIncomingDataFrame(&frame)
 		}
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY) &&
 		frame.Id == int(BD_NET_DC_VIDEO_DATA_ID):
@@ -551,8 +546,8 @@ func (b *Bebop) packetReceiver(buf []byte) {
 		}
 	}
 
-	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == BD_NET_DC_EVENT_ID {
-		go b.handleIncomingDataFrame(frame)
+	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == int(BD_NET_DC_EVENT_ID) {
+		go b.handleIncomingDataFrame(&frame)
 	}
 
 	//
@@ -565,13 +560,6 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			fmt.Println("ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING", err)
 		}
 	}
-}
-
-func (b *Bebop) Telemetry() chan struct {
-	Title string
-	Data  []byte
-} {
-	return self.telemetry
 }
 
 func (b *Bebop) StartRecording() error {
