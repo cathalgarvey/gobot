@@ -4,7 +4,52 @@ import (
 	"github.com/hybridgroup/gobot"
 )
 
-var _ gobot.Driver = (*BebopDriver)(nil)
+var (
+	_           gobot.Driver = (*BebopDriver)(nil)
+	bebopEvents              = []string{
+		// Generic events
+		"unknown",
+		"error",
+		// Gross state telemetry; important enough that this enum got broken out. :)
+		"landed",
+		"takingoff",
+		"hovering",
+		"flying",
+		"landing",
+		"emergency",
+		// Introspective telemetry
+		/// Camera
+		"pictureformatchanged",
+		"autowhitebalancechanged",
+		"expositionchanged",
+		"saturationchanged",
+		"timelapsechanged",
+		"videoautorecordchanged",
+		/// Behaviour
+		"flattrim",
+		"navigatehomestate",
+		"alertstate",
+		"autotakeoffmode",
+		"networksettingsstate",
+		/// Assets
+		"battery",
+		"massstorage",
+		"massstorageinfo",
+		"massstorageinforemaining",
+		"sensorstates",
+		/// Factoids
+		"currentdate",
+		"currenttime",
+		"dronemodel",
+		"countrycodes",
+		// Extrospective telemetry
+		"gps",
+		"speed",
+		"attitude",
+		"altitude",
+		"wifisignal",
+	}
+)
 
 // BebopDriver is gobot.Driver representation for the Bebop
 type BebopDriver struct {
@@ -17,53 +62,26 @@ type BebopDriver struct {
 // NewBebopDriver creates an BebopDriver with specified name.
 func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 	d := &BebopDriver{
-		name:       name,
-		connection: connection,
-		Eventer:    gobot.NewEventer(),
+		name:         name,
+		connection:   connection,
+		Eventer:      gobot.NewEventer(),
 		endTelemetry: make(chan struct{}),
 	}
-	// Generic events
-	d.AddEvent("unknown")
-	d.AddEvent("error")
-	// Gross state telemetry; important enough that this enum got broken out. :)
-	d.AddEvent("landed")
-	d.AddEvent("takingoff")
-	d.AddEvent("hovering")
-	d.AddEvent("flying")
-	d.AddEvent("landing")
-	d.AddEvent("emergency")
-	// Introspective telemetry
-	/// Camera
-	d.AddEvent("pictureformatchanged")
-	d.AddEvent("autowhitebalancechanged")
-	d.AddEvent("expositionchanged")
-	d.AddEvent("saturationchanged")
-	d.AddEvent("timelapsechanged")
-	d.AddEvent("videoautorecordchanged")
-	/// Behaviour
-	d.AddEvent("flattrim") //?
-	d.AddEvent("navigatehomestate")
-	d.AddEvent("alertstate")
-	d.AddEvent("autotakeoffmode")
-	d.AddEvent("networksettingsstate")
-	/// Assets
-	d.AddEvent("battery")
-	d.AddEvent("massstorage")
-	d.AddEvent("massstorageinfo")
-	d.AddEvent("massstorageinforemaining")
-	d.AddEvent("sensorstates")
-	/// Factoids
-	d.AddEvent("currentdate")
-	d.AddEvent("currenttime")
-	d.AddEvent("dronemodel")
-	d.AddEvent("countrycodes")
-	// Extrospective telemetry
-	d.AddEvent("gps")
-	d.AddEvent("speed")
-	d.AddEvent("attitude")
-	d.AddEvent("altitude")
-	d.AddEvent("wifisignal")
+	for _, e := range bebopEvents {
+		d.AddEvent(e)
+	}
 	return d
+}
+
+// Use given function to subscribe to all known Bebop Events,
+// including "unknown" and "error"
+func (a *BebopDriver) Debug(f func(string, []byte)) {
+	for _, e := range bebopEvents {
+		e := e
+		gobot.On(a.Event(e), func(data interface{}) {
+			f(e, data.([]byte))
+		})
+	}
 }
 
 // Name returns the BebopDrivers Name
@@ -85,14 +103,14 @@ func (a *BebopDriver) Start() (errs []error) {
 		T := a.adaptor().drone.Telemetry()
 		for {
 			select {
-			case t := <- T:
+			case t := <-T:
 				{
 					// t is a bbtelem.TelemetryPacket object which may contain error, JSON payload,
 					// and/or commentary data in addition to a "Title" property.
 					// "Title" is the name of the event to send the JSON payload along.
 					gobot.Publish(a.Event(t.Title), t.Payload)
 				}
-			case <- a.endTelemetry:
+			case <-a.endTelemetry:
 				{
 					return
 				}

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 	"net"
 	"time"
-	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 func validatePitch(val int) int {
@@ -168,7 +168,7 @@ type Bebop struct {
 	discoveryClient       *net.TCPConn
 	networkFrameGenerator func(*bytes.Buffer, byte, byte) *bytes.Buffer
 	// Buffered. When full, frames are abandoned.
-	telemetry chan bbtelem.TelemetryPacket
+	telemetry    chan bbtelem.TelemetryPacket
 	endTelemetry chan struct{}
 	video        chan []byte
 	writeChan    chan []byte
@@ -190,9 +190,9 @@ func New() *Bebop {
 			Gaz:   0,
 			Psi:   0,
 		},
-		tmpFrame: tmpFrame{},
-		video:    make(chan []byte),
-		telemetry: make(chan bbtelem.TelemetryPacket, 10),
+		tmpFrame:     tmpFrame{},
+		video:        make(chan []byte),
+		telemetry:    make(chan bbtelem.TelemetryPacket, 10),
 		endTelemetry: make(chan struct{}),
 		writeChan:    make(chan []byte),
 	}

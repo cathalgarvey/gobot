@@ -2,8 +2,8 @@ package bebop
 
 import (
 	"github.com/hybridgroup/gobot"
-	"github.com/hybridgroup/gobot/platforms/bebop/client"
 	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
+	"github.com/hybridgroup/gobot/platforms/bebop/client"
 )
 
 var _ gobot.Adaptor = (*BebopAdaptor)(nil)
