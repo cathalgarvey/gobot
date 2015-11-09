@@ -19,6 +19,7 @@ var (
 		"emergency",
 		// Introspective telemetry
 		/// Camera
+		"camerastate",
 		"pictureformatchanged",
 		"autowhitebalancechanged",
 		"expositionchanged",
@@ -31,6 +32,7 @@ var (
 		"alertstate",
 		"autotakeoffmode",
 		"networksettingsstate",
+		"mavlinkfileplaying",
 		/// Assets
 		"battery",
 		"massstorage",
@@ -42,6 +44,9 @@ var (
 		"currenttime",
 		"dronemodel",
 		"countrycodes",
+		"controllerlibversion",
+		"skycontrollerlibversion",
+		"devicelibversion",
 		// Extrospective telemetry
 		"gps",
 		"speed",
@@ -108,7 +113,15 @@ func (a *BebopDriver) Start() (errs []error) {
 					// t is a bbtelem.TelemetryPacket object which may contain error, JSON payload,
 					// and/or commentary data in addition to a "Title" property.
 					// "Title" is the name of the event to send the JSON payload along.
-					gobot.Publish(a.Event(t.Title), t.Payload)
+					if t.Title == "error" || t.Title == "unknown" {
+						payload := make([]byte, 0)
+						payload = append(payload, []byte(t.Comment)...)
+						payload = append(payload, []byte(":: ")...)
+						payload = append(payload, t.Payload...)
+						gobot.Publish(a.Event(t.Title), payload)
+					} else {
+						gobot.Publish(a.Event(t.Title), t.Payload)
+					}
 				}
 			case <-a.endTelemetry:
 				{
