@@ -9,6 +9,7 @@ var (
 	bebopEvents              = []string{
 		// Generic events
 		"unknown",
+		"unknownProject", // So common it merits its own.. handling code must be picking up non data frames?
 		"error",
 		// Gross state telemetry; important enough that this enum got broken out. :)
 		"landed",
@@ -20,6 +21,7 @@ var (
 		// Introspective telemetry
 		/// Camera
 		"camerastate",
+		"camerasettingsstate",
 		"pictureformatchanged",
 		"autowhitebalancechanged",
 		"expositionchanged",
@@ -33,6 +35,16 @@ var (
 		"autotakeoffmode",
 		"networksettingsstate",
 		"mavlinkfileplaying",
+		"availabilitystatechanged",
+		"startingerrorevent",
+		"speedbridleevent",
+		"sethomechanged",
+		"resethomechanged",
+		"gpsfixstatechanged",
+		"gpsupdatestatechanged",
+		"hometypechanged",
+		/// Network
+		"networkdisconnect",
 		/// Assets
 		"battery",
 		"massstorage",
@@ -73,6 +85,7 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 		endTelemetry: make(chan struct{}),
 	}
 	for _, e := range bebopEvents {
+		e := e
 		d.AddEvent(e)
 	}
 	return d

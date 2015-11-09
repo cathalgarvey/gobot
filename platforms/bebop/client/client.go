@@ -533,6 +533,7 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			}
 			go b.handleIncomingDataFrame(&frame)
 		}
+
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY) &&
 		frame.Id == int(BD_NET_DC_VIDEO_DATA_ID):
 		{
@@ -546,7 +547,8 @@ func (b *Bebop) packetReceiver(buf []byte) {
 		}
 	}
 
-	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == int(BD_NET_DC_EVENT_ID) {
+//	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == int(BD_NET_DC_EVENT_ID) {
+	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) {
 		go b.handleIncomingDataFrame(&frame)
 	}
 
