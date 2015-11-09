@@ -131,6 +131,35 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 	}
 }
 
+// Handle telemetry from device pertaining to Wifi band/channel settings
+func (b *Bebop) handleNetworkSettingsStateFrame(commandId byte, frame *NetworkFrame) {
+	switch commandId {
+	case ARCOMMANDS_ARDRONE3_NETWORKSETTINGSSTATECHANGED_STATE_WIFISELECTIONCHANGED:
+		// Appears to be simply feedback for when the client issues a corresponding
+		// instruction; returns settings to confirm?
+		{
+			wftypestr, err := decodeEnum(frame.data[4:8], []string{"auto_all", "auto_2_4ghz", "auto_5ghz", "all"})
+			if err != nil {
+				go sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.data)
+				return
+			}
+			wfbandstr, err := decodeEnum(frame.data[8:12], []string{"2_4ghz", "5ghz", "all"})
+			if err != nil {
+				go sendRuntimeError("Error in WIFISELECTIONCHANGED telemetry handler", err, frame.data)
+				return
+			}
+			var	channel uint8
+			binary.Read(bytes.NewReader(frame.data[12:13]), binary.LittleEndian, &channel)
+			payload, _ := json.Marshal(struct{type, wfband string; channel int}{type:wftypestr, band:wfbandstr, channel: int(channel)})
+			go sendTelemetry("networksettingsstate", payload)
+		}
+	default:
+		{
+			go sendUnknownTelemetry("Unknown Network commandId: "+strconv.Itoa(int(commandId)), frame.data)
+		}
+	}
+}
+
 // Handles the important events that related to device state in the air: GPS position,
 // attitude, speed, etcetera.
 func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
@@ -249,6 +278,82 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 	}
 }
 
+func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
+	switch commandId {
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_BATTERYSTATECHANGED:
+		{
+			// This uint8 is a percentage acc. to docs, should be 0-100?
+			var telemdata struct{battery uint8}
+			binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &telemdata)
+			payload, _ := json.Marshal(telemdata)
+			go b.sendTelemetry("battery", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGESTATELISTCHANGED:
+		{
+			var (
+				mass_storage_id uint8
+				mass_stoage_name string
+			)
+			binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &mass_storage_id)
+			mass_storage_name = string(frame.data[5:])  // ? Encoding? Length? Huh?
+			payload, _ := json.Marshal(struct{mass_storage_id uint8; name string}{mass_storage_id: mass_storage_id, name: mass_storage_name})
+			go b.sendTelemetry("massstorage", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGEINFOSTATELISTCHANGED:
+		// Information on a particular volume? Volunteered, or in response to a query?
+		{
+			var telemdata struct{mass_storage_id uint8; size, used_size uint32; plugged, full, internal bool}
+			binary.Read(bytes.NewReader(frame.data[4:72]), binary.LittleEndian, &telemdata)
+			payload, _ := json.Marshal(telemdata)
+			go b.sendTelemetry("massstorageinfo", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTDATECHANGED:
+		// Date in ISO-8601
+		{
+			dates := string(frame.data[4:])  // Parse to real time object? ISO-8601
+			payload, _ := json.Marshal(struct{date string}{date: dates})
+			go b.sendTelemetry("currentdate", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTTIMECHANGED:
+		// Time in ISO-8601
+		{
+			times := string(frame.data[4:])  // Parse to real time object? ISO-8601
+			payload, _ := json.Marshal(struct{time string}{time: times})
+			go b.sendTelemetry("currenttime", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGEINFOREMAININGLISTCHANGED:
+		// Remaining space on volume, with estimate of photo space/recording time?
+		{
+			var telemdata struct{free_space uint32; rec_time uint16; photo_remaining uint32}
+			binary.Read(bytes.NewReader(frame.data[4:80]), binary.LittleEndian, &telemdata)
+			payload, _ := json.Marshal(telemdata)
+			go b.sendTelemetry("massstorageinforemaining", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_WIFISIGNALCHANGED:
+		{
+			var telemdata struct{rssi int16}  // in dbm
+			binary.Read(bytes.NewReader(frame.data[4:20]), binary.LittleEndian, &telemdata)
+			payload, _ := json.Marshal(telemdata)
+			go b.sendTelemetry("wifisignal", payload)
+		}
+	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_SENSORSSTATESLISTCHANGED:
+		{
+			var sensorState bool
+			sensorName, err := decodeEnum(frame.data[4:8], []string{"IMU", "barometer", "ultrasound", "GPS", "magnetometer", "vertical_camera"})
+			if err != nil {
+				go sendRuntimeError("Error processing sensor state telemetry", err, frame)
+				return
+			}
+			payload, _ := json.Marshal(struct{sensorName string; sensorState bool}{sensorName: sensorName, sensorState: sensorState})
+			go b.sendTelemetry("sensorstates", payload)
+		}
+	default:
+		{
+			go sendUnknownTelemetry("Unknown/Unhandled COMMONSTATE commandId: "+strconv.Itoa(int(commandId)), frame.data)
+		}
+	}
+}
+
 // Entry point after ACKing for data that might be worth dispatching as Telemetry.
 // Hands off the work for less trivial data to other methods.
 func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
@@ -269,16 +374,11 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 			switch commandClass {
 			case ARCOMMANDS_ID_COMMON_CLASS_COMMONSTATE:
 				{
-					//
-					switch commandId {
-					case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_BATTERYSTATECHANGED:
-						{
-							battery_data := byte(0)
-							binary.Read(bytes.NewReader(frame.data[4:5]), binary.LittleEndian, &battery_data)
-							b.NavData["battery"] = battery_data
-							b.sendTelemetry("battery", []byte{battery_data})
-						}
-					}
+					b.handleCommonStateFrame(commandId, frame)
+				}
+			default:
+				{
+					go sendUnknownTelemetry("Unknown/Unhandled common project commandClass: "+strconv.Itoa(int(commandClass)), frame.data)
 				}
 			}
 		}
@@ -286,35 +386,16 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		{
 			switch commandClass {
 			case ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE:
-				{
 					// This includes things like speed, altitude, GPS coords, and current
 					// gross behaviour ("flying"/"landing").
+				{
 					b.handlePilotingStateFrame(commandId, frame)
 				}
 			case ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:
+					// Not as interesting as it sounds, this handleds onboard settings
+					// around frequency and channel use.
 				{
-					switch commandId {
-					case ARCOMMANDS_ARDRONE3_NETWORKSETTINGSSTATECHANGED_STATE_WIFISELECTIONCHANGED:
-						// Appears to be simply feedback for when the client issues a corresponding
-						// instruction; returns settings to confirm?
-						{
-							var (
-								wftype, wfband int
-								channel byte
-								wftypestr, wfbandstr string
-							)
-							binary.Read(bytes.NewReader(frame.data[ 4: 8]), binary.LittleEndian, &wftype)
-							binary.Read(bytes.NewReader(frame.data[ 8:12]), binary.LittleEndian, &wfband)
-							binary.Read(bytes.NewReader(frame.data[12:13]), binary.LittleEndian, &channel)
-							wftypestr = []string{"auto_all", "auto_2_4ghz", "auto_5ghz", "all"}[wftype]
-							wfbandstr = []string{"2_4ghz", "5ghz", "all"}[wfband]
-							payload, _ := json.Marshal(struct{type, wfband string; channel int}{type:wftypestr, band:wfbandstr, channel: int(channel)})
-							go sendTelemetry("networksettingsstate", payload)
-						}
-					default: {
-						go sendUnknownTelemetry("Unknown Network commandId: "+strconv.Itoa(int(commandId)), frame.data)
-					}
-					}
+					b.handleNetworkSettingsStateFrame(commandId, frame)
 				}
 			case ARCOMMANDS_ID_ARDRONE3_CLASS_PICTURESETTINGSSTATE:
 				// Appears to be simply feedback for when the client issues a corresponding
