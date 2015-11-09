@@ -520,41 +520,37 @@ func (b *Bebop) packetReceiver(buf []byte) {
 	frame := NewNetworkFrame(buf)
 
 	switch {
-	//
+  case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA)
+		{
+			go b.handleIncomingDataFrame(&frame)
+		}
 	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
-	//
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK):
 		{
 			ack := b.createAck(frame).Bytes()
 			_, err := b.write(ack)
-
 			if err != nil {
 				fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK", err)
 			}
+
 			go b.handleIncomingDataFrame(&frame)
 		}
-
-	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY) &&
-		frame.Id == int(BD_NET_DC_VIDEO_DATA_ID):
+	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY):
 		{
-			arstreamFrame := NewARStreamFrame(frame.Data)
+		  if frame.Id == int(BD_NET_DC_VIDEO_DATA_ID) {
+				arstreamFrame := NewARStreamFrame(frame.Data)
 
-			ack := b.createARStreamACK(arstreamFrame).Bytes()
-			_, err := b.write(ack)
-			if err != nil {
-				fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY", err)
-			}
+				ack := b.createARStreamACK(arstreamFrame).Bytes()
+				_, err := b.write(ack)
+				if err != nil {
+					fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY", err)
+				}
+			}  // else?
 		}
+	// Default?
 	}
 
-//	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) || frame.Id == int(BD_NET_DC_EVENT_ID) {
-	if frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA) {
-		go b.handleIncomingDataFrame(&frame)
-	}
-
-	//
 	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
-	//
 	if frame.Id == int(ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING) {
 		pong := b.createPong(frame).Bytes()
 		_, err := b.write(pong)
