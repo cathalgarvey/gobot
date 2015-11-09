@@ -2,9 +2,6 @@ package bebop
 
 import (
 	"github.com/hybridgroup/gobot"
-//	"github.com/hybridgroup/gobot/platforms/bebop/client"
-
-//	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 var _ gobot.Driver = (*BebopDriver)(nil)
@@ -12,8 +9,7 @@ var _ gobot.Driver = (*BebopDriver)(nil)
 // BebopDriver is gobot.Driver representation for the Bebop
 type BebopDriver struct {
 	name       string
-	// connection gobot.Connection
-  connection *BebopAdaptor  // Superset of gobot.Connection, so should work?
+	connection gobot.Connection
 	gobot.Eventer
 	endTelemetry chan struct{}
 }
@@ -26,6 +22,9 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 		Eventer:    gobot.NewEventer(),
 		endTelemetry: make(chan struct{}),
 	}
+	// Generic events
+	d.AddEvent("unknown")
+	d.AddEvent("error")
 	// Gross state telemetry; important enough that this enum got broken out. :)
 	d.AddEvent("landed")
 	d.AddEvent("takingoff")
@@ -34,16 +33,36 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 	d.AddEvent("landing")
 	d.AddEvent("emergency")
 	// Introspective telemetry
-	d.AddEvent("flattrim")
-	d.AddEvent("battery")
-	d.AddEvent("autotakeoffmode")
+	/// Camera
+	d.AddEvent("pictureformatchanged")
+	d.AddEvent("autowhitebalancechanged")
+	d.AddEvent("expositionchanged")
+	d.AddEvent("saturationchanged")
+	d.AddEvent("timelapsechanged")
+	d.AddEvent("videoautorecordchanged")
+	/// Behaviour
+	d.AddEvent("flattrim") //?
 	d.AddEvent("navigatehomestate")
 	d.AddEvent("alertstate")
+	d.AddEvent("autotakeoffmode")
+	d.AddEvent("networksettingsstate")
+	/// Assets
+	d.AddEvent("battery")
+	d.AddEvent("massstorage")
+	d.AddEvent("massstorageinfo")
+	d.AddEvent("massstorageinforemaining")
+	d.AddEvent("sensorstates")
+	/// Factoids
+	d.AddEvent("currentdate")
+	d.AddEvent("currenttime")
+	d.AddEvent("dronemodel")
+	d.AddEvent("countrycodes")
 	// Extrospective telemetry
 	d.AddEvent("gps")
 	d.AddEvent("speed")
 	d.AddEvent("attitude")
 	d.AddEvent("altitude")
+	d.AddEvent("wifisignal")
 	return d
 }
 
@@ -63,7 +82,7 @@ func (a *BebopDriver) adaptor() *BebopAdaptor {
 // events;
 func (a *BebopDriver) Start() (errs []error) {
 	go func(a *BebopDriver) {
-		T := a.connection.Telemetry()
+		T := a.adaptor().drone.Telemetry()
 		for {
 			select {
 			case t := <- T:
@@ -90,7 +109,9 @@ func (a *BebopDriver) Halt() (errs []error) {
 
 // TakeOff makes the drone start flying
 func (a *BebopDriver) TakeOff() {
-	gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
+	a.adaptor().drone.TakeOff()
+	// "flying" event should be published by usual event handling system, now?
+	//gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
 }
 
 // Land causes the drone to land

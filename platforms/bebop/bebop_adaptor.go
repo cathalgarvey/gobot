@@ -23,12 +23,6 @@ type drone interface {
 	Stop() error
 	Connect() error
 	Video() chan []byte
-	// Returns a channel of events as returned by the device, with string titles.
-	// Titles are friendly in some cases, and SDK allcaps identifiers in others.
-	// Returns a channel of JSON events as returned by the device, each of which
-	// will have a field "TITLE" (corresponding to a string) as well as other data
-	// fields according to event type. The TITLE field is taken as the event Name
-	// and dispatched to the gobot event handler.
 	Telemetry() chan bbtelem.TelemetryPacket
 	StartRecording() error
 	StopRecording() error
