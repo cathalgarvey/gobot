@@ -1,13 +1,13 @@
 package client
 
 import (
-	"fmt"
-	"net"
-	"time"
 	"bytes"
-	"strconv"
 	"encoding/binary"
+	"fmt"
 	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
+	"net"
+	"strconv"
+	"time"
 )
 
 func validatePitch(val int) int {
@@ -171,13 +171,12 @@ type Bebop struct {
 	discoveryClient       *net.TCPConn
 	networkFrameGenerator func(*bytes.Buffer, byte, byte) *bytes.Buffer
 	// Buffered. When full, frames are abandoned.
-	telemetry    chan bbtelem.TelemetryPacket
+	telemetry         chan bbtelem.TelemetryPacket
 	telemetryHandlers map[byte]map[byte]telemHandler
-	endTelemetry chan struct{}
-	video        chan []byte
-	writeChan    chan []byte
+	endTelemetry      chan struct{}
+	video             chan []byte
+	writeChan         chan []byte
 }
-
 
 func New() *Bebop {
 	b := &Bebop{
@@ -195,12 +194,12 @@ func New() *Bebop {
 			Gaz:   0,
 			Psi:   0,
 		},
-		tmpFrame:     tmpFrame{},
-		video:        make(chan []byte),
-		telemetry:    make(chan bbtelem.TelemetryPacket, 10),
+		tmpFrame:          tmpFrame{},
+		video:             make(chan []byte),
+		telemetry:         make(chan bbtelem.TelemetryPacket, 10),
 		telemetryHandlers: *new(map[byte]map[byte]telemHandler),
-		endTelemetry: make(chan struct{}),
-		writeChan:    make(chan []byte),
+		endTelemetry:      make(chan struct{}),
+		writeChan:         make(chan []byte),
 	}
 	b.populateTelemetryHandlers()
 	return b
@@ -528,28 +527,28 @@ func (b *Bebop) packetReceiver(buf []byte) {
 	frame := NewNetworkFrame(buf)
 
 	switch {
-  case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA):
+	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA):
 		{
 			// Here's the source of the noisy incrementing projectIds: DATA has
 			// three subtypes, EVENT (), NAVDATA (), and Ping/Pong. The latter has
 			// its own header structure which is currently being misinterpreted.
 			switch byte(frame.Id) {
-				case BD_NET_DC_EVENT_ID, BD_NET_DC_NAVDATA_ID:
-					{
-						go b.handleIncomingDataFrame(&frame)
+			case BD_NET_DC_EVENT_ID, BD_NET_DC_NAVDATA_ID:
+				{
+					go b.handleIncomingDataFrame(&frame)
+				}
+			case ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING: // Ping
+				{
+					pong := b.createPong(frame).Bytes()
+					_, err := b.write(pong)
+					if err != nil {
+						fmt.Println("ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING", err)
 					}
-				case ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING:  // Ping
-					{
-						pong := b.createPong(frame).Bytes()
-						_, err := b.write(pong)
-						if err != nil {
-							fmt.Println("ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING", err)
-						}
-					}
-				default:
-					{
-						b.sendUnknownTelemetry("Unknown frame.Id for Data type frame: "+strconv.Itoa(frame.Id), frame.Data)
-					}
+				}
+			default:
+				{
+					b.sendUnknownTelemetry("Unknown frame.Id for Data type frame: "+strconv.Itoa(frame.Id), frame.Data)
+				}
 			}
 		}
 	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
@@ -564,7 +563,7 @@ func (b *Bebop) packetReceiver(buf []byte) {
 		}
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY):
 		{
-		  if frame.Id == int(BD_NET_DC_VIDEO_DATA_ID) {
+			if frame.Id == int(BD_NET_DC_VIDEO_DATA_ID) {
 				arstreamFrame := NewARStreamFrame(frame.Data)
 
 				ack := b.createARStreamACK(arstreamFrame).Bytes()
@@ -572,9 +571,9 @@ func (b *Bebop) packetReceiver(buf []byte) {
 				if err != nil {
 					fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY", err)
 				}
-			}  // else?
+			} // else?
 		}
-	// Default?
+		// Default?
 	}
 }
 

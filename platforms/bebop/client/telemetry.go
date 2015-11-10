@@ -2,11 +2,11 @@ package client
 
 import (
 	"bytes"
-	"strconv"
-	"errors"
-	"encoding/json"
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
+	"strconv"
 )
 
 func (b *Bebop) Telemetry() chan bbtelem.TelemetryPacket {
@@ -17,39 +17,38 @@ func (b *Bebop) Telemetry() chan bbtelem.TelemetryPacket {
 // doublets, then query a two-dimensional map of same using the appropriate bytes
 // to get the handler function.
 // Class-level switch/selection of telemetry by Id proceeds as normal.
-type telemHandler struct{
-  // Human readable forms of Project/Class.
-  // Used as a prefix in error or unknown Id telemetry.
-  ProjectName, ClassName string
-  // A method on the Bebop struct that handles this telemetry event.
-	// Hopefully won't have to write/desugar all my methods to functions to
-	// make this work..
-  HandlerFunc func(byte, *NetworkFrame)
+type telemHandler struct {
+	// Human readable forms of Project/Class.
+	// Used as a prefix in error or unknown Id telemetry.
+	ProjectName, ClassName string
+	// A method on the Bebop struct that handles this telemetry event.
+	// Returns true if a handler was found, and error if the handler broke.
+	// This allows the dispatcher to use the above naming information to send
+	// "unknown" or "error" events.
+	HandlerFunc func(byte, *NetworkFrame) (bool, string, error)
 }
 
 // Needs Methods to call and detect errors, then issue error or unknown telemetry appropriately
 // Ideally this is Lookup Map -> If Null, Issue Unknown, else Call, check errors, post errors.
 
-
 func (b *Bebop) populateTelemetryHandlers() {
-  b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_COMMON] = map[byte]telemHandler{
-    ARCOMMANDS_ID_COMMON_CLASS_COMMONSTATE: telemHandler{"Common", "CommonState", b.handleCommonStateFrame},
-		ARCOMMANDS_ID_COMMON_CLASS_NETWORK: telemHandler{ "Common", "Network",
-			func(a byte, f *NetworkFrame){b.sendEmptyTelemetry("networkdisconnect")}},
-		ARCOMMANDS_ID_COMMON_CLASS_MAVLINKSTATE: telemHandler{"Common", "MavlinkState", b.handleMavlinkStateFrame},
+	b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_COMMON] = map[byte]telemHandler{
+		ARCOMMANDS_ID_COMMON_CLASS_COMMONSTATE: telemHandler{"Common", "CommonState", b.handleCommonStateFrame},
+		ARCOMMANDS_ID_COMMON_CLASS_NETWORK: telemHandler{"Common", "Network", b.handleNetworkFrame},
+		ARCOMMANDS_ID_COMMON_CLASS_MAVLINKSTATE:        telemHandler{"Common", "MavlinkState", b.handleMavlinkStateFrame},
 		ARCOMMANDS_ID_COMMON_CLASS_CAMERASETTINGSSTATE: telemHandler{"Common", "CameraSettingsState", b.handleCameraSettingsState},
-		ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANSTATE: telemHandler{"Common", "FlightPlanState", b.handleFlightPlanState},
-		ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANEVENT: telemHandler{"Common", "FlightPlanEvent", b.handleFlightPlanEvent},
+		ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANSTATE:     telemHandler{"Common", "FlightPlanState", b.handleFlightPlanState},
+		ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANEVENT:     telemHandler{"Common", "FlightPlanEvent", b.handleFlightPlanEvent},
 		ARCOMMANDS_ID_COMMON_CLASS_ARLIBSVERSIONSSTATE: telemHandler{"Common", "ARLibsVersionState", b.handleVersionStateFrames},
-		ARCOMMANDS_ID_COMMON_CLASS_SETTINGSSTATE: telemHandler{"Common", "SettingsState", b.handleEventCommonSettingsState},
-  }
-  b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_ARDRONE3] = map[byte]telemHandler{
-    ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE: telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
-		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE: telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
-		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE: telemHandler{"ARDrone3", "NetworkState", b.handleNetworkSettingsStateFrame},
+		ARCOMMANDS_ID_COMMON_CLASS_SETTINGSSTATE:       telemHandler{"Common", "SettingsState", b.handleEventCommonSettingsState},
+	}
+	b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_ARDRONE3] = map[byte]telemHandler{
+		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE:        telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE:          telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:         telemHandler{"ARDrone3", "NetworkState", b.handleNetworkSettingsStateFrame},
 		ARCOMMANDS_ID_ARDRONE3_CLASS_PICTURESETTINGSSTATE: telemHandler{"ARDrone3", "PictureSettingsState", b.handlePictureSettingsStateFrame},
-		ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE: telemHandler{"ARDrone3", "GPSSettingsState", b.handleGPSSettingsStateFrame},
-  }
+		ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE:     telemHandler{"ARDrone3", "GPSSettingsState", b.handleGPSSettingsStateFrame},
+	}
 }
 
 // Entry point after ACKing for data that might be worth dispatching as Telemetry.
@@ -58,7 +57,7 @@ func (b *Bebop) populateTelemetryHandlers() {
 // useful "unknown" message on failure.
 func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	var (
-		commandProject byte  // Seems to increment continuously on some frames?
+		commandProject byte // Seems to increment continuously on some frames?
 		commandClass   byte
 		commandId16    uint16
 		commandId      byte
@@ -78,56 +77,73 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		var proj string
 		switch commandProject {
 		case ARCOMMANDS_ID_PROJECT_COMMON:
-			{proj = "Common"}
+			{
+				proj = "Common"
+			}
 		case ARCOMMANDS_ID_PROJECT_ARDRONE3:
-			{proj = "ARDrone3"}
+			{
+				proj = "ARDrone3"
+			}
 		}
 		b.sendUnknownTelemetry("Couldn't find handler for class within "+proj+": "+strconv.Itoa(int(commandProject)), frame.Data)
 	}
-	// TODO: Want to tie the annotation of class Handlers to their execution,
-	// and perhaps reframe them to return errors instead of raising themselves,
-	// for better clarity and DRYness.
-  c_handler.HandlerFunc(commandId, frame)
+	// Handlers return (true, nil) if everything went well, or (false, nil) if
+	// handler for the commandId wasn't found, or (true, error) if the handler
+	// broke somehow.
+	// Context value is only used when the commandId was located; it is a human-readable
+	// reference to the command.
+	go func(c_handler *telemHandler, commandId byte, frame *NetworkFrame) {
+		path := c_handler.ProjectName+":"+c_handler.ClassName
+		cmdidstr := strconv.Itoa(int(commandId))
+		found, context, err := c_handler.HandlerFunc(commandId, frame)
+		if err != nil {
+			b.sendRuntimeError("Error in handler for "+path+", commandId "+cmdidstr+", context '"+context+"'", err, frame.Data)
+		}
+		if !found {
+			b.sendUnknownTelemetry("Unknown commandId in "+path+": "+cmdidstr, frame.Data)
+		}
+	}(&c_handler, commandId, frame)
 }
 
+var telemSendError = errors.New("Failed to send telemetry; channel full.")
 // Attempts to send data with a given title across the telemetry channel. If the
 // chan is full then the default simply drops the data.
-func (b *Bebop) dispatchTelemetry(telem *bbtelem.TelemetryPacket) {
+func (b *Bebop) dispatchTelemetry(telem *bbtelem.TelemetryPacket) error {
 	select {
 	case <-b.endTelemetry:
 		{
-			return
+			return nil
 		}
 	case b.telemetry <- *telem:
 		{
-			return
+			return nil
 		}
 	// If buffer above is full (10 unread), abandon send.
 	default:
 		{
-			return
+			return telemSendError
 		}
 	}
 }
 
 // Make a telemetry object and ship to dispatchTelemetry
-func (b *Bebop) sendTelemetry(title string, payload []byte) {
-	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+func (b *Bebop) sendTelemetry(title string, payload []byte) error {
+	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title:   title,
 		Payload: payload,
 	})
 }
 
 // Shortcut method for sending a title with an empty JSON object.
-func (b *Bebop) sendEmptyTelemetry(title string) {
-	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+func (b *Bebop) sendEmptyTelemetry(title string) error {
+	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title: title,
 	})
 }
 
 // Shortcut method for sending unknown data embedded in a JSON object as {"data": "<base64>"}
-func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) {
-	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) error {
+	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title:   "unknown",
 		Comment: comment,
 		Payload: data,
@@ -135,8 +151,8 @@ func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) {
 }
 
 // Shortcut method for issuing errors through Telemetry
-func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) {
-	b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) error {
+	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title:   "error",
 		Error:   err,
 		Comment: comment,
@@ -147,13 +163,12 @@ func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) {
 // Handles the very common job of encoding to JSON, while handling errors. Errors
 // are currently silently ignored, using this will help handle them well without
 // imposing code overhead or duplication.
-func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj interface{}) {
-  payload, err := json.Marshal(obj)
-  if err != nil {
-    b.sendRuntimeError("Error encoding JSON for ''"+eventTitle+"' event", err, frame.Data)
-    return
-  }
-  go b.sendTelemetry(eventTitle, payload)
+func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj interface{}) error {
+	payload, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	return b.sendTelemetry(eventTitle, payload)
 }
 
 // Common task: Decode a 4-byte enum, then use it to index some strings representing enum value
@@ -165,7 +180,10 @@ func decodeEnum(raw []byte, vals []string) (string, error) {
 	if len(raw) != 4 {
 		return "", enumBadSizeError
 	}
-	binary.Read(bytes.NewReader(raw), binary.LittleEndian, &evalue)
+	err := binary.Read(bytes.NewReader(raw), binary.LittleEndian, &evalue)
+	if err != nil {
+		return "", err
+	}
 	if evalue < 0 || evalue > len(vals)-1 {
 		return "", enumOutOfRangeError
 	}
