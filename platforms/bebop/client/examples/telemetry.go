@@ -15,7 +15,7 @@ func main() {
 		fmt.Println("Enabling debug mode.")
 		drone.Debug(func(eventname string, payload []byte){
 			switch eventname {
-				case "flattrim", "unknownProject", "camerastate": {
+				case "flattrim", "camerastate": {
           // Overly spammy
 					return
 				}

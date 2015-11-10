@@ -172,13 +172,15 @@ type Bebop struct {
 	networkFrameGenerator func(*bytes.Buffer, byte, byte) *bytes.Buffer
 	// Buffered. When full, frames are abandoned.
 	telemetry    chan bbtelem.TelemetryPacket
+	telemetryHandlers map[byte]map[byte]telemHandler
 	endTelemetry chan struct{}
 	video        chan []byte
 	writeChan    chan []byte
 }
 
+
 func New() *Bebop {
-	return &Bebop{
+	b := &Bebop{
 		IP:                    "192.168.42.1",
 		NavData:               make(map[string]string),
 		C2dPort:               54321,
@@ -196,9 +198,12 @@ func New() *Bebop {
 		tmpFrame:     tmpFrame{},
 		video:        make(chan []byte),
 		telemetry:    make(chan bbtelem.TelemetryPacket, 10),
+		telemetryHandlers: *new(map[byte]map[byte]telemHandler),
 		endTelemetry: make(chan struct{}),
 		writeChan:    make(chan []byte),
 	}
+	b.populateTelemetryHandlers()
+	return b
 }
 
 func (b *Bebop) write(buf []byte) (int, error) {
