@@ -94,6 +94,9 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId)
 	commandId = byte(commandId16)
 
+	// TODO: Handle two frame.Ids separately for cleanliness? What is their difference?
+	// BD_NET_DC_EVENT_ID, BD_NET_DC_NAVDATA_ID
+
 	switch commandProject {
 	case ARCOMMANDS_ID_PROJECT_COMMON:
 		{

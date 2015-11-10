@@ -1,12 +1,13 @@
 package client
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 	"net"
 	"time"
+	"bytes"
+	"strconv"
+	"encoding/binary"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 func validatePitch(val int) int {
@@ -527,7 +528,24 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			// Here's the source of the noisy incrementing projectIds: DATA has
 			// three subtypes, EVENT (), NAVDATA (), and Ping/Pong. The latter has
 			// its own header structure which is currently being misinterpreted.
-			go b.handleIncomingDataFrame(&frame)
+			switch byte(frame.Id) {
+				case BD_NET_DC_EVENT_ID, BD_NET_DC_NAVDATA_ID:
+					{
+						go b.handleIncomingDataFrame(&frame)
+					}
+				case ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING:  // Ping
+					{
+						pong := b.createPong(frame).Bytes()
+						_, err := b.write(pong)
+						if err != nil {
+							fmt.Println("ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING", err)
+						}
+					}
+				default:
+					{
+						b.sendUnknownTelemetry("Unknown frame.Id for Data type frame: "+strconv.Itoa(frame.Id), frame.Data)
+					}
+			}
 		}
 	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK):
@@ -552,15 +570,6 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			}  // else?
 		}
 	// Default?
-	}
-
-	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
-	if frame.Id == int(ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING) {
-		pong := b.createPong(frame).Bytes()
-		_, err := b.write(pong)
-		if err != nil {
-			fmt.Println("ARNETWORK_MANAGER_INTERNAL_BUFFER_ID_PING", err)
-		}
 	}
 }
 
