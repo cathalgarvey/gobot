@@ -87,6 +87,8 @@ type NetworkFrame struct {
 	Data []byte
 }
 
+// Parses a buffer for Type, Id, Sequence, and remaining Data.
+// Remaining data is explicitly truncated to the specified length.
 func NewNetworkFrame(buf []byte) NetworkFrame {
 	frame := NetworkFrame{
 		Type: int(buf[0]),
@@ -427,6 +429,7 @@ func (b *Bebop) CounterClockwise(val int) error {
 	return nil
 }
 
+// Should this send Land()?
 func (b *Bebop) Stop() error {
 	b.Pcmd = Pcmd{
 		Flag:  1,
@@ -521,6 +524,9 @@ func (b *Bebop) packetReceiver(buf []byte) {
 	switch {
   case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA):
 		{
+			// Here's the source of the noisy incrementing projectIds: DATA has
+			// three subtypes, EVENT (), NAVDATA (), and Ping/Pong. The latter has
+			// its own header structure which is currently being misinterpreted.
 			go b.handleIncomingDataFrame(&frame)
 		}
 	// libARNetwork/Sources/ARNETWORK_Receiver.c#ARNETWORK_Receiver_ThreadRun
@@ -531,7 +537,6 @@ func (b *Bebop) packetReceiver(buf []byte) {
 			if err != nil {
 				fmt.Println("ARNETWORKAL_FRAME_TYPE_DATA_WITH_ACK", err)
 			}
-
 			go b.handleIncomingDataFrame(&frame)
 		}
 	case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA_LOW_LATENCY):

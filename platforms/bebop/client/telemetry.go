@@ -79,38 +79,6 @@ func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj in
 }
 
 
-func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
-	switch commandId {
-	case 0: // ControllerLibARCommandsVersion
-		{
-			version, _, err := parseNullTermedString(frame.Data[4:])
-			if err != nil {
-				b.sendRuntimeError("Error parsing controller libARCCommands version frame", err, frame.Data)
-				return
-			}
-			b.sendJSONTelemetry(frame, "controllerlibversion", struct{ Version string }{Version: version})
-		}
-	case 1: // SkyControllerLibARCommandsVersion
-		{
-			version, _, err := parseNullTermedString(frame.Data[4:])
-			if err != nil {
-				b.sendRuntimeError("Error parsing skycontroller libARCCommands version frame", err, frame.Data)
-				return
-			}
-			b.sendJSONTelemetry(frame, "skycontrollerlibversion", struct{ Version string }{Version: version})
-		}
-	case 2: // DeviceLibARCommandsVersion
-		{
-			version, _, err := parseNullTermedString(frame.Data[4:])
-			if err != nil {
-				b.sendRuntimeError("Error parsing device libARCCommands version frame", err, frame.Data)
-				return
-			}
-			b.sendJSONTelemetry(frame, "devicelibversion", struct{ Version string }{Version: version})
-		}
-	}
-}
-
 // Entry point after ACKing for data that might be worth dispatching as Telemetry.
 // Hands off the work for less trivial data to other methods.
 func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
@@ -120,6 +88,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		commandId16    uint16
 		commandId      byte
 	)
+	// For single-byte values is this overkill?
 	binary.Read(bytes.NewReader(frame.Data[0:1]), binary.LittleEndian, &commandProject)
 	binary.Read(bytes.NewReader(frame.Data[1:2]), binary.LittleEndian, &commandClass)
 	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId)

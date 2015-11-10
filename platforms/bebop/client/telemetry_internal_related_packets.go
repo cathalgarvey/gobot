@@ -125,3 +125,36 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 		}
 	}
 }
+
+// Device can volunteer version info sometimes.
+func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
+	switch commandId {
+	case 0: // ControllerLibARCommandsVersion
+		{
+			version, _, err := parseNullTermedString(frame.Data[4:])
+			if err != nil {
+				b.sendRuntimeError("Error parsing controller libARCCommands version frame", err, frame.Data)
+				return
+			}
+			b.sendJSONTelemetry(frame, "controllerlibversion", struct{ Version string }{Version: version})
+		}
+	case 1: // SkyControllerLibARCommandsVersion
+		{
+			version, _, err := parseNullTermedString(frame.Data[4:])
+			if err != nil {
+				b.sendRuntimeError("Error parsing skycontroller libARCCommands version frame", err, frame.Data)
+				return
+			}
+			b.sendJSONTelemetry(frame, "skycontrollerlibversion", struct{ Version string }{Version: version})
+		}
+	case 2: // DeviceLibARCommandsVersion
+		{
+			version, _, err := parseNullTermedString(frame.Data[4:])
+			if err != nil {
+				b.sendRuntimeError("Error parsing device libARCCommands version frame", err, frame.Data)
+				return
+			}
+			b.sendJSONTelemetry(frame, "devicelibversion", struct{ Version string }{Version: version})
+		}
+	}
+}
