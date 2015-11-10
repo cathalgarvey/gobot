@@ -9,7 +9,7 @@ import (
 // attitude, speed, etcetera.
 func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
 	switch commandId {
-	// Flat Trim changed (?)
+	// Flat Trim changed (?) == 0
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLATTRIMCHANGED:
 		{
 			// No args. Very often.

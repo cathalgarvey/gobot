@@ -94,7 +94,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	// For single-byte values is this overkill?
 	binary.Read(bytes.NewReader(frame.Data[0:1]), binary.LittleEndian, &commandProject)
 	binary.Read(bytes.NewReader(frame.Data[1:2]), binary.LittleEndian, &commandClass)
-	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId)
+	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId16)
 	commandId = byte(commandId16)
 
 	p_map, ok := b.telemetryHandlers[commandProject]
