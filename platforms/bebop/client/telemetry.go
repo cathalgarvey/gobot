@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -43,11 +44,39 @@ func (b *Bebop) populateTelemetryHandlers() {
 		ARCOMMANDS_ID_COMMON_CLASS_SETTINGSSTATE:       telemHandler{"Common", "SettingsState", b.handleEventCommonSettingsState},
 	}
 	b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_ARDRONE3] = map[byte]telemHandler{
+		// 0  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTING
+		// 1  = ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERA
+		// 2  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGS
+		// 3  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORDEVENT
+		// 4:
 		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE:        telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
-		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE:          telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
+		// 5  = ARCOMMANDS_ID_ARDRONE3_CLASS_ANIMATIONS
+		// 6  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGSSTATE
+		// 7  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORD
+		// 8  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORDSTATE
+		// 9  = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSETTINGS
+		// 10 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSETTINGSSTATE
+		// 11 = ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGS
+		// 12 = ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGSSTATE
+		// 13 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORK
+		// 14:
 		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:         telemHandler{"ARDrone3", "NetworkState", b.handleNetworkSettingsStateFrame},
+		// 15 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGS              byte = 15
+		// 16 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGSSTATE         byte = 16
+		// 17 = ARCOMMANDS_ID_ARDRONE3_CLASS_DIRECTORMODE          byte = 17
+		// 18 = ARCOMMANDS_ID_ARDRONE3_CLASS_DIRECTORMODESTATE     byte = 18
+		// 19 = ARCOMMANDS_ID_ARDRONE3_CLASS_PICTURESETTINGS       byte = 19
+		// 20:
 		ARCOMMANDS_ID_ARDRONE3_CLASS_PICTURESETTINGSSTATE: telemHandler{"ARDrone3", "PictureSettingsState", b.handlePictureSettingsStateFrame},
+		// 21 = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIASTREAMING        byte = 21
+		// 22 = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIASTREAMINGSTATE   byte = 22
+		// 23 = ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGS           byte = 23
+		// 24:
 		ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE:     telemHandler{"ARDrone3", "GPSSettingsState", b.handleGPSSettingsStateFrame},
+		// 25:
+		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE:          telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
+		// 29 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERING        byte = 29
+		// 30 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERINGSTATE   byte = 30
 	}
 }
 
@@ -86,13 +115,14 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 			}
 		}
 		b.sendUnknownTelemetry("Couldn't find handler for class within "+proj+": "+strconv.Itoa(int(commandProject)), frame.Data)
+		return
 	}
 	// Handlers return (true, nil) if everything went well, or (false, nil) if
 	// handler for the commandId wasn't found, or (true, error) if the handler
 	// broke somehow.
 	// Context value is only used when the commandId was located; it is a human-readable
 	// reference to the command.
-	go func(c_handler *telemHandler, commandId byte, frame *NetworkFrame) {
+	go func(c_handler telemHandler, commandId byte, frame *NetworkFrame) {
 		path := c_handler.ProjectName+":"+c_handler.ClassName
 		cmdidstr := strconv.Itoa(int(commandId))
 		found, context, err := c_handler.HandlerFunc(commandId, frame)
@@ -102,7 +132,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		if !found {
 			b.sendUnknownTelemetry("Unknown commandId in "+path+": "+cmdidstr, frame.Data)
 		}
-	}(&c_handler, commandId, frame)
+	}(c_handler, commandId, frame)
 }
 
 var telemSendError = errors.New("Failed to send telemetry; channel full.")
@@ -152,12 +182,16 @@ func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) error {
 
 // Shortcut method for issuing errors through Telemetry
 func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) error {
-	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+	internal_err := b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title:   "error",
 		Error:   err,
 		Comment: comment,
 		Payload: data,
 	})
+	if internal_err != nil {
+		fmt.Println("RUNTIME ERROR: ", internal_err.Error())
+	}
+	return internal_err
 }
 
 // Handles the very common job of encoding to JSON, while handling errors. Errors

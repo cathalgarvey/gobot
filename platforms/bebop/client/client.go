@@ -107,6 +107,7 @@ func NewNetworkFrame(buf []byte) NetworkFrame {
 	return frame
 }
 
+// TODO: This makes the race detector upset..
 func networkFrameGenerator() func(*bytes.Buffer, byte, byte) *bytes.Buffer {
 	//func networkFrameGenerator() func(*bytes.Buffer, byte, byte) NetworkFrame {
 	//
@@ -196,8 +197,10 @@ func New() *Bebop {
 		},
 		tmpFrame:          tmpFrame{},
 		video:             make(chan []byte),
-		telemetry:         make(chan bbtelem.TelemetryPacket, 10),
-		telemetryHandlers: *new(map[byte]map[byte]telemHandler),
+		//telemetry:         make(chan bbtelem.TelemetryPacket, 10),
+		// TODO / DEBUG: Removing channel size to ensure I'm not losing packets..
+		telemetry:         make(chan bbtelem.TelemetryPacket),
+		telemetryHandlers: make(map[byte]map[byte]telemHandler),
 		endTelemetry:      make(chan struct{}),
 		writeChan:         make(chan []byte),
 	}

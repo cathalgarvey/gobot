@@ -274,9 +274,9 @@ func (b *Bebop) handleFlightPlanState(commandId byte, frame *NetworkFrame) (foun
 		return false, "", nil
 	}
 	var telemdata struct {
-		AvailabilityState bool `json:"availabilityState"`
+		AvailabilityState uint8 `json:"availabilityState"`
 	}
-	err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
+	err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata.AvailabilityState)
 	if err != nil {
 		return true, "AvailabilityStateChanged", err
 	}

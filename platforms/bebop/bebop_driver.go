@@ -1,6 +1,7 @@
 package bebop
 
 import (
+	//"fmt"
 	"github.com/hybridgroup/gobot"
 )
 
@@ -97,7 +98,15 @@ func (a *BebopDriver) Debug(f func(string, []byte)) {
 	for _, e := range bebopEvents {
 		e := e
 		gobot.On(a.Event(e), func(data interface{}) {
-			f(e, data.([]byte))
+			switch t := data.(type) {
+				case []byte: {
+						f(e, t)
+					}
+				default: {
+				  // Avoid killing telemetry by mistake when sending events manually
+					f(e, []byte(`{"warning":"Manual telemetry event may break things"}`))
+				}
+			}
 		})
 	}
 }
@@ -130,9 +139,13 @@ func (a *BebopDriver) Start() (errs []error) {
 						payload := make([]byte, 0)
 						payload = append(payload, []byte(t.Comment)...)
 						payload = append(payload, []byte(":: ")...)
+						if t.Error != nil {
+							payload = append(payload, []byte(t.Error.Error())...)
+						}
 						payload = append(payload, t.Payload...)
 						gobot.Publish(a.Event(t.Title), payload)
 					} else {
+						// fmt.Println("Issuing telemetry: ", t.Title)
 						gobot.Publish(a.Event(t.Title), t.Payload)
 					}
 				}
@@ -155,7 +168,8 @@ func (a *BebopDriver) Halt() (errs []error) {
 func (a *BebopDriver) TakeOff() {
 	a.adaptor().drone.TakeOff()
 	// "flying" event should be published by usual event handling system, now?
-	//gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
+	// But..it isn't?
+	gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
 }
 
 // Land causes the drone to land
