@@ -512,15 +512,14 @@ func (b *Bebop) createPong(frame NetworkFrame) *bytes.Buffer {
 	)
 }
 
-// For frames requiring an ACK, this generates and sends them. For media frames,
-// processing of the video is handled as a side-effect within the createARStreamACK
-// method. For other frames, handling is passed to Bebop.handleIncomingDataFrame
-// (as a goroutine).
+// Handles sending pongs, ACKs, and dispatching frames requiring processing
+// to either Bebop.handleIncomingDataFrame or Bebop.createARStreamACK.
+// Handling of media is a side effect of Bebop.createARStreamACK.
 func (b *Bebop) packetReceiver(buf []byte) {
 	frame := NewNetworkFrame(buf)
 
 	switch {
-  case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA)
+  case frame.Type == int(ARNETWORKAL_FRAME_TYPE_DATA):
 		{
 			go b.handleIncomingDataFrame(&frame)
 		}

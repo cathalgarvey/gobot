@@ -66,6 +66,18 @@ func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) {
 	})
 }
 
+// Handles the very common job of encoding to JSON, while handling errors. Errors
+// are currently silently ignored, using this will help handle them well without
+// imposing code overhead or duplication.
+func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj interface{}) {
+  payload, err := json.Marshal(obj)
+  if err != nil {
+    b.sendRuntimeError("Error encoding JSON for ''"+eventTitle+"' event", err, frame.Data)
+    return
+  }
+  go b.sendTelemetry(eventTitle, payload)
+}
+
 
 func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
 	switch commandId {
@@ -76,8 +88,7 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
 				b.sendRuntimeError("Error parsing controller libARCCommands version frame", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct{ Version string }{Version: version})
-			go b.sendTelemetry("controllerlibversion", payload)
+			b.sendJSONTelemetry(frame, "controllerlibversion", struct{ Version string }{Version: version})
 		}
 	case 1: // SkyControllerLibARCommandsVersion
 		{
@@ -86,8 +97,7 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
 				b.sendRuntimeError("Error parsing skycontroller libARCCommands version frame", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct{ Version string }{Version: version})
-			go b.sendTelemetry("skycontrollerlibversion", payload)
+			b.sendJSONTelemetry(frame, "skycontrollerlibversion", struct{ Version string }{Version: version})
 		}
 	case 2: // DeviceLibARCommandsVersion
 		{
@@ -96,8 +106,7 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) {
 				b.sendRuntimeError("Error parsing device libARCCommands version frame", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct{ Version string }{Version: version})
-			go b.sendTelemetry("devicelibversion", payload)
+			b.sendJSONTelemetry(frame, "devicelibversion", struct{ Version string }{Version: version})
 		}
 	}
 }
@@ -143,8 +152,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 						TileMin float32 `json:"tileMin"`
 					}
 					binary.Read(bytes.NewReader(frame.Data[4:4+(32 * 5)]), binary.LittleEndian, &telemdata)
-					payload, _ := json.Marshal(telemdata)
-					go b.sendTelemetry("camerasettingsstate", payload)
+					b.sendJSONTelemetry(frame, "camerasettingsstate", telemdata)
 				}
 			case ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANSTATE:
 				{
@@ -154,8 +162,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 						AvailabilityState bool `json:"availabilityState"`
 					}
 					binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
-					payload, _ := json.Marshal(telemdata)
-					go b.sendTelemetry("availabilitystatechanged", payload)
+					b.sendJSONTelemetry(frame, "availabilitystatechanged", telemdata)
 				}
 			case ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANEVENT:
 				{
@@ -211,8 +218,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 					// Only one commandId, 0. Don't bother checking?
 					var telemdata struct{ Tilt, Pan int8 }
 					binary.Read(bytes.NewReader(frame.Data[4:6]), binary.LittleEndian, &telemdata)
-					payload, _ := json.Marshal(telemdata)
-					go b.sendTelemetry("camerastate", payload)
+					b.sendJSONTelemetry(frame, "camerastate", telemdata)
 				}
 			case ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE:
 				{

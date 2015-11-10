@@ -4,8 +4,8 @@ import (
   "bytes"
   "strconv"
   "encoding/binary"
-  "encoding/json"
 )
+
 // Handle telemetry from device pertaining to Wifi band/channel settings
 func (b *Bebop) handleNetworkSettingsStateFrame(commandId byte, frame *NetworkFrame) {
 	switch commandId {
@@ -25,12 +25,11 @@ func (b *Bebop) handleNetworkSettingsStateFrame(commandId byte, frame *NetworkFr
 			}
 			var channel uint8
 			binary.Read(bytes.NewReader(frame.Data[12:13]), binary.LittleEndian, &channel)
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "networksettingsstate", struct {
 				Type    string `json:"type"`
 				Band    string `json:"band"`
 				Channel int    `json:"channel"`
 			}{Type: wftypestr, Band: wfbandstr, Channel: int(channel)})
-			go b.sendTelemetry("networksettingsstate", payload)
 		}
 	default:
 		{

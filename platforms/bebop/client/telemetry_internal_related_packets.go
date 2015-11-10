@@ -33,11 +33,10 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 			)
 			binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &mass_storage_id)
 			mass_storage_name := string(frame.Data[5:]) // ? Encoding? Length? Huh?
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "massstorage", struct {
 				Mass_storage_id uint8  `json:"Mass_storage_id"`
 				Name            string `json:"name"`
 			}{Mass_storage_id: mass_storage_id, Name: mass_storage_name})
-			go b.sendTelemetry("massstorage", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGEINFOSTATELISTCHANGED:
 		// Information on a particular volume? Volunteered, or in response to a query?
@@ -51,26 +50,23 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 				Internal        bool   `json:"internal"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:72]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("massstorageinfo", payload)
+      b.sendJSONTelemetry(frame, "massstorageinfo", telemdata)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTDATECHANGED:
 		// Date in ISO-8601
 		{
 			dates := string(frame.Data[4:]) // Parse to real time object? ISO-8601
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "currentdate", struct {
 				Date string `json:"date"`
 			}{Date: dates})
-			go b.sendTelemetry("currentdate", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTTIMECHANGED:
 		// Time in ISO-8601
 		{
 			times := string(frame.Data[4:]) // Parse to real time object? ISO-8601
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "currenttime", struct {
 				Time string `json:"time"`
 			}{Time: times})
-			go b.sendTelemetry("currenttime", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGEINFOREMAININGLISTCHANGED:
 		// Remaining space on volume, with estimate of photo space/recording time?
@@ -81,8 +77,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 				Photo_remaining uint32 `json:"photo_remaining"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:80]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("massstorageinforemaining", payload)
+      b.sendJSONTelemetry(frame, "massstorageinforemaining", telemdata)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_WIFISIGNALCHANGED:
 		{
@@ -90,8 +85,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 				Rssi int16 `json:"rssi"`
 			} // in dbm
 			binary.Read(bytes.NewReader(frame.Data[4:20]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("wifisignal", payload)
+      b.sendJSONTelemetry(frame, "wifisignal", telemdata)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_SENSORSSTATESLISTCHANGED:
 		{
@@ -101,12 +95,10 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 				go b.sendRuntimeError("Error processing sensor state telemetry", err, frame.Data)
 				return
 			}
-			pld := struct {
+      b.sendJSONTelemetry(frame, "sensorstates", struct{
 				SensorName  string `json:"sensorName"`
 				SensorState bool   `json:"sensorState"`
-			}{SensorName: sensorName, SensorState: sensorState}
-			payload, _ := json.Marshal(pld)
-			go b.sendTelemetry("sensorstates", payload)
+			}{SensorName: sensorName, SensorState: sensorState})
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_PRODUCTMODEL:
 		// This appears to be irrelevant to the Bebop but it's in "common"!
@@ -116,18 +108,16 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) {
 				go b.sendRuntimeError("Error processing drone model telemetry", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "dronemodel", struct {
 				Model string `json:"model"`
 			}{Model: modelstr})
-			go b.sendTelemetry("dronemodel", payload)
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_COUNTRYLISTKNOWN:
 		{
 			ccodes := string(frame.Data[4:])
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "countrycodes", struct {
 				CountryCodes string `json:"countryCodes"`
 			}{ccodes})
-			go b.sendTelemetry("countrycodes", payload)
 		}
 	default:
 		{

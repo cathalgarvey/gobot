@@ -58,10 +58,9 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				go b.sendRuntimeError("Error in ALERTSTATECHANGED telemetry handler", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "alertstate", struct {
 				State string `json:"state"`
 			}{State: statestr})
-			go b.sendTelemetry("alertstate", payload)
 		}
 	// Navigate Home State Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_NAVIGATEHOMESTATECHANGED:
@@ -76,13 +75,12 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				go b.sendRuntimeError("Error in NAVIGATEHOMESTATECHANGED telemetry handler", err, frame.Data)
 				return
 			}
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "navigatehomestate", struct {
 				State  string `json:"state"`
 				Reason string `json:"reason"`
 			}{
 				State: statestr, Reason: reasonstr,
 			})
-			go b.sendTelemetry("navigatehomestate", payload)
 		}
 	// Position (GPS)
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_POSITIONCHANGED:
@@ -93,8 +91,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				Alt float64 `json:"alt"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:28]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("gps", payload)
+      b.sendJSONTelemetry(frame, "gps", telemdata)
 		}
 	// Speed Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_SPEEDCHANGED:
@@ -105,8 +102,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				SpeedZ float64 `json:"speedZ"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:28]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("speed", payload)
+      b.sendJSONTelemetry(frame, "speed", telemdata)
 		}
 	// Attitude Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ATTITUDECHANGED:
@@ -117,8 +113,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				Yaw   float32 `json:"yaw"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("attitude", payload)
+      b.sendJSONTelemetry(frame, "attitude", telemdata)
 		}
 	// Auto Takeoff Mode Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_AUTOTAKEOFFMODECHANGED:
@@ -127,8 +122,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				State bool `json:"state"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("autotakeoffmode", payload)
+      b.sendJSONTelemetry(frame, "autotakeoffmode", telemdata)
 		}
 	// Altitude Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ALTITUDECHANGED:
@@ -137,8 +131,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) {
 				Altitude float64 `json:"altitude"`
 			}
 			binary.Read(bytes.NewReader(frame.Data[4:12]), binary.LittleEndian, &telemdata)
-			payload, _ := json.Marshal(telemdata)
-			go b.sendTelemetry("altitude", payload)
+      b.sendJSONTelemetry(frame, "altitude", telemdata)
 		}
 	// End of PilotingState cases
 	default:
@@ -164,12 +157,11 @@ func (b *Bebop) handleMavlinkStateFrame(commandId byte, frame *NetworkFrame) {
 				return
 			}
 			types, err := decodeEnum(rest, []string{"flightPlan", "mapMyHouse"})
-			payload, _ := json.Marshal(struct {
+      b.sendJSONTelemetry(frame, "mavlinkfileplaying", struct {
 				State    string `json:"state"`
 				Filepath string `json:"filepath"`
 				Type     string `json:"type"`
 			}{state, filepath, types})
-			go b.sendTelemetry("mavlinkfileplaying", payload)
 		}
 	}
 }
@@ -203,8 +195,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
         Fixed bool `json:"fixed"`
       }
       binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
-      payload, _ := json.Marshal(telemdata)
-      go b.sendTelemetry("gpsfixstatechanged", payload)
+      b.sendJSONTelemetry(frame, "gpsfixstatechanged", telemdata)
     }
   case 3: // GPSUpdateStateChanged - GPS Update state
     {
@@ -216,8 +207,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
       telemdata := struct{
         State string `json:"state"`
       }{state}
-      payload, _ := json.Marshal(telemdata)
-      go b.sendTelemetry("gpsupdatestatechanged", payload)
+      b.sendJSONTelemetry(frame, "gpsupdatestatechanged", telemdata)
     }
   case 4: // HomeTypeChanged - State of the type of the home position. This type is the user preference. The prefered home type may not be available, see HomeTypeStatesChanged to get the drone home type
     {
@@ -229,8 +219,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
       telemdata := struct{
         Type string `json:"type"`
       }{state}
-      payload, _ := json.Marshal(telemdata)
-      go b.sendTelemetry("hometypechanged", payload)
+      b.sendJSONTelemetry(frame, "hometypechanged", telemdata)
     }
   case 5: // ReturnHomeDelayChanged - State of the delay after which the drone will automatically try to return home
     {
@@ -238,8 +227,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
         Delay uint16 `json:"delay"`
       }
       binary.Read(bytes.NewReader(frame.Data[4:6]), binary.LittleEndian, &telemdata)
-      payload, _ := json.Marshal(telemdata)
-      go b.sendTelemetry("returnhomedelaychanged", payload)
+      b.sendJSONTelemetry(frame, "returnhomedelaychanged", telemdata)
     }
   default:
     {

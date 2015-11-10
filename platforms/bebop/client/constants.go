@@ -10,8 +10,9 @@ const (
 	BD_NET_CD_EMERGENCY_ID  byte = 12
 	BD_NET_CD_VIDEO_ACK_ID  byte = 13
 	BD_NET_DC_VIDEO_DATA_ID byte = 125
-	BD_NET_DC_EVENT_ID      byte = 126
-	BD_NET_DC_NAVDATA_ID    byte = 127
+	// Following two, along with byte(0) (PING), 
+	BD_NET_DC_EVENT_ID      byte = 126  // 0x7E
+	BD_NET_DC_NAVDATA_ID    byte = 127  // 0x7F
 
 	// eARCOMMANDS_ID_PROJECT
 	ARCOMMANDS_ID_PROJECT_COMMON   byte = 0
