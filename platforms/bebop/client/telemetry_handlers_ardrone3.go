@@ -49,68 +49,25 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 	// Flying state changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLYINGSTATECHANGED:
 		{
-			var flyingstate int
-			err = binary.Read(bytes.NewReader(frame.Data[4:8]), binary.LittleEndian, &flyingstate)
+			states := []string{"landed",
+												 "takingoff",
+												 "hovering",
+												 "flying",
+												 "landing",
+												 "emergency"}
+		  flyingstate, err := decodeEnum(frame.Data[4:8], states)
 			if err != nil {
 				return true, "FlyingStateChanged", err
 			}
-			// These are kind of a big deal so send them as separate events, unlike other enums
-			switch byte(flyingstate) {
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_LANDED:
-				{
-					err = b.sendEmptyTelemetry("landed")
-					if err != nil {
-						return true, "FlyingStateChanged:Landed", err
-					}
-				}
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_TAKINGOFF:
-				{
-					err = b.sendEmptyTelemetry("takingoff")
-					if err != nil {
-						return true, "FlyingStateChanged:TakingOff", err
-					}
-				}
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_HOVERING:
-				{
-					err = b.sendEmptyTelemetry("hovering")
-					if err != nil {
-						return true, "FlyingStateChanged:Hovering", err
-					}
-				}
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_FLYING:
-				{
-					err = b.sendEmptyTelemetry("flying")
-					if err != nil {
-						return true, "FlyingStateChanged:Flying", err
-					}
-
-				}
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_LANDING:
-				{
-					err = b.sendEmptyTelemetry("landing")
-					if err != nil {
-						return true, "FlyingStateChanged:Landing", err
-					}
-				}
-			case ARCOMMANDS_ARDRONE3_PILOTINGSTATE_FLYINGSTATECHANGED_STATE_EMERGENCY:
-				{
-					err = b.sendEmptyTelemetry("emergency")
-					if err != nil {
-						return true, "FlyingStateChanged:Emergency", err
-					}
-				}
-			default:
-				{
-					// If this does occur it'll take a minute to figure out, but worth
-					// covering that base.
-					return false, "", nil
-				}
+			err = b.sendEmptyTelemetry(flyingstate)
+			if err != nil {
+				return true, "FlyingStateChanged", err
 			}
 		}
 	// Alert State Changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_ALERTSTATECHANGED:
 		{
-			statestr, err := decodeEnum(frame.Data[4:8], []string{"none", "cut_out", "critical_battery", "low_battery", "too_much_angle"})
+			statestr, err := decodeEnum(frame.Data[4:8], []string{"none", "user", "cut_out", "critical_battery", "low_battery", "too_much_angle"})
 			if err != nil {
 				return true, "AlertStateChanged", err
 			}

@@ -219,7 +219,10 @@ var enumOutOfRangeError error = errors.New("Enum value fell outside expected ran
 var enumBadSizeError error = errors.New("Wrong size binary given for a Bebop enum. Expected 4.")
 
 func decodeEnum(raw []byte, vals []string) (string, error) {
-	var evalue int
+	var (
+		evalue uint32
+		evaluei int
+	)
 	if len(raw) != 4 {
 		return "", enumBadSizeError
 	}
@@ -227,10 +230,11 @@ func decodeEnum(raw []byte, vals []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if evalue < 0 || evalue > len(vals)-1 {
+  evaluei = int(evalue)
+	if evaluei < 0 || evaluei > len(vals)-1 {
 		return "", enumOutOfRangeError
 	}
-	return vals[evalue], nil
+	return vals[evaluei], nil
 }
 
 // Given a frame presumed to contain a null-ended string, return the string

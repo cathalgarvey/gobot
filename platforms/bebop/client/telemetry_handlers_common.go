@@ -56,9 +56,9 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 				Mass_storage_id uint8  `json:"mass_storage_id"`
 				Size            uint32 `json:"size"`
 				Used_size       uint32 `json:"used_size"`
-				Plugged         bool   `json:"plugged"`
-				Full            bool   `json:"full"`
-				Internal        bool   `json:"internal"`
+				Plugged         uint8   `json:"plugged"`
+				Full            uint8   `json:"full"`
+				Internal        uint8   `json:"internal"`
 			}
 			err = binary.Read(bytes.NewReader(frame.Data[4:72]), binary.LittleEndian, &telemdata)
 			if err != nil {

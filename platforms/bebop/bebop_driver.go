@@ -21,7 +21,7 @@ var (
 		"emergency",
 		// Introspective telemetry
 		/// Camera
-		"allstateschanged"
+		"allstateschanged",
 		"camerastate",
 		"camerasettingsstate",
 		"pictureformatchanged",
