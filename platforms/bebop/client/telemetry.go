@@ -1,11 +1,11 @@
 package client
 
 import (
-	"fmt"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 	"strconv"
 )
@@ -34,8 +34,8 @@ type telemHandler struct {
 
 func (b *Bebop) populateTelemetryHandlers() {
 	b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_COMMON] = map[byte]telemHandler{
-		ARCOMMANDS_ID_COMMON_CLASS_COMMONSTATE: telemHandler{"Common", "CommonState", b.handleCommonStateFrame},
-		ARCOMMANDS_ID_COMMON_CLASS_NETWORK: telemHandler{"Common", "Network", b.handleNetworkFrame},
+		ARCOMMANDS_ID_COMMON_CLASS_COMMONSTATE:         telemHandler{"Common", "CommonState", b.handleCommonStateFrame},
+		ARCOMMANDS_ID_COMMON_CLASS_NETWORK:             telemHandler{"Common", "Network", b.handleNetworkFrame},
 		ARCOMMANDS_ID_COMMON_CLASS_MAVLINKSTATE:        telemHandler{"Common", "MavlinkState", b.handleMavlinkStateFrame},
 		ARCOMMANDS_ID_COMMON_CLASS_CAMERASETTINGSSTATE: telemHandler{"Common", "CameraSettingsState", b.handleCameraSettingsState},
 		ARCOMMANDS_ID_COMMON_CLASS_FLIGHTPLANSTATE:     telemHandler{"Common", "FlightPlanState", b.handleFlightPlanState},
@@ -50,7 +50,7 @@ func (b *Bebop) populateTelemetryHandlers() {
 		// 2  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGS -> Command! Sets maxima/minima, V. important to implement.
 		// 3  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORDEVENT
 		// 4:
-		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE:        telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE: telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
 		// 5  = ARCOMMANDS_ID_ARDRONE3_CLASS_ANIMATIONS
 		// 6  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGSSTATE
 		// TODO: Implement! Reports results of <2>?
@@ -65,7 +65,7 @@ func (b *Bebop) populateTelemetryHandlers() {
 		ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGSSTATE: telemHandler{"ARDrone3", "SpeedSettingsState", b.handleSpeedSettingsState},
 		// 13 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORK  -> Command! Responses are via 14.
 		// 14:
-		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:         telemHandler{"ARDrone3", "NetworkState", b.handleNetworkStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE: telemHandler{"ARDrone3", "NetworkState", b.handleNetworkStateFrame},
 		// 15 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGS              byte = 15
 		// 16 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGSSTATE         byte = 16
 		// 17 = ARCOMMANDS_ID_ARDRONE3_CLASS_DIRECTORMODE          byte = 17
@@ -77,9 +77,9 @@ func (b *Bebop) populateTelemetryHandlers() {
 		// 22 = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIASTREAMINGSTATE   byte = 22
 		// 23 = ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGS           byte = 23
 		// 24:
-		ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE:     telemHandler{"ARDrone3", "GPSSettingsState", b.handleGPSSettingsStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_GPSSETTINGSSTATE: telemHandler{"ARDrone3", "GPSSettingsState", b.handleGPSSettingsStateFrame},
 		// 25:
-		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE:          telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE: telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
 		// 29 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERING        byte = 29
 		// 30 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERINGSTATE   byte = 30
 		// 31 = ?
@@ -132,7 +132,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	// Context value is only used when the commandId was located; it is a human-readable
 	// reference to the command.
 	go func(c_handler *telemHandler, commandId byte, frame *NetworkFrame) {
-		path := c_handler.ProjectName+":"+c_handler.ClassName
+		path := c_handler.ProjectName + ":" + c_handler.ClassName
 		cmdidstr := strconv.Itoa(int(commandId))
 		found, context, err := c_handler.HandlerFunc(commandId, frame)
 		if err != nil {
@@ -145,6 +145,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 }
 
 var telemSendError = errors.New("Failed to send telemetry; channel full.")
+
 // Attempts to send data with a given title across the telemetry channel. If the
 // chan is full then the default simply drops the data.
 func (b *Bebop) dispatchTelemetry(telem *bbtelem.TelemetryPacket) error {
@@ -220,7 +221,7 @@ var enumBadSizeError error = errors.New("Wrong size binary given for a Bebop enu
 
 func decodeEnum(raw []byte, vals []string) (string, error) {
 	var (
-		evalue uint32
+		evalue  uint32
 		evaluei int
 	)
 	if len(raw) != 4 {
@@ -230,7 +231,7 @@ func decodeEnum(raw []byte, vals []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-  evaluei = int(evalue)
+	evaluei = int(evalue)
 	if evaluei < 0 || evaluei > len(vals)-1 {
 		return "", enumOutOfRangeError
 	}

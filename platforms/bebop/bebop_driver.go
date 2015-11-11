@@ -56,10 +56,10 @@ var (
 		"hometypechanged",
 		/// Network
 		"networkdisconnect",
-		"wifiscanlistchanged", // Sent one for each wifi scanned?
-		"allwifiscanchanged",  // Sent when above frames are all sent
-		"wifiauthchannellistchanged",  // Sent to indicate for 2.4/5ghz channels which are permitted, and where (indoors/outdoors)
-		"allwifiauthchannelchanged", // Sent to indicate device is finished sending the above?
+		"wifiscanlistchanged",        // Sent one for each wifi scanned?
+		"allwifiscanchanged",         // Sent when above frames are all sent
+		"wifiauthchannellistchanged", // Sent to indicate for 2.4/5ghz channels which are permitted, and where (indoors/outdoors)
+		"allwifiauthchannelchanged",  // Sent to indicate device is finished sending the above?
 		/// Assets
 		"battery",
 		"massstorage",
@@ -113,11 +113,13 @@ func (a *BebopDriver) Debug(f func(string, []byte)) {
 		e := e
 		gobot.On(a.Event(e), func(data interface{}) {
 			switch t := data.(type) {
-				case []byte: {
-						f(e, t)
-					}
-				default: {
-				  // Avoid killing telemetry by mistake when sending events manually
+			case []byte:
+				{
+					f(e, t)
+				}
+			default:
+				{
+					// Avoid killing telemetry by mistake when sending events manually
 					f(e, []byte(`{"warning":"Manual telemetry event may break things"}`))
 				}
 			}
@@ -181,13 +183,14 @@ func (a *BebopDriver) Halt() (errs []error) {
 // TakeOff makes the drone start flying
 func (a *BebopDriver) TakeOff() {
 	a.adaptor().drone.TakeOff()
-	// "flying" event should be published by usual event handling system, now?
-	// But..it isn't?
-	gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
+	// "flying" event should be published by usual event handling system, now
+	// however, it only publishes *after* "takingoff"!
+	//gobot.Publish(a.Event("flying"), a.adaptor().drone.TakeOff())
 }
 
 // Land causes the drone to land
 func (a *BebopDriver) Land() {
+	// TODO: Why is this broken?
 	a.adaptor().drone.Land()
 }
 

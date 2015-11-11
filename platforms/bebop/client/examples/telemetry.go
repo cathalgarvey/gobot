@@ -21,7 +21,7 @@ func main() {
   				drone.Land()
   			})
   		})
-      drone.TakeOff()
+      //drone.TakeOff()
     }
     //*
 		fmt.Println("Enabling debug mode.")
