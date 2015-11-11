@@ -44,23 +44,28 @@ func (b *Bebop) populateTelemetryHandlers() {
 		ARCOMMANDS_ID_COMMON_CLASS_SETTINGSSTATE:       telemHandler{"Common", "SettingsState", b.handleEventCommonSettingsState},
 	}
 	b.telemetryHandlers[ARCOMMANDS_ID_PROJECT_ARDRONE3] = map[byte]telemHandler{
-		// 0  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTING
-		// 1  = ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERA
-		// 2  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGS
+		// 0  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTING -> Command!
+		// 1: Why is this returning telemetry? These are camera controlling commands? -> Command!
+		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERA: telemHandler{"ARDrone3", "Camera", b.handleCameraFrame},
+		// 2  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGS -> Command! Sets maxima/minima, V. important to implement.
 		// 3  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORDEVENT
 		// 4:
 		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSTATE:        telemHandler{"ARDrone3", "PilotingState", b.handlePilotingStateFrame},
 		// 5  = ARCOMMANDS_ID_ARDRONE3_CLASS_ANIMATIONS
 		// 6  = ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGSSTATE
+		// TODO: Implement! Reports results of <2>?
+		ARCOMMANDS_ID_ARDRONE3_CLASS_PILOTINGSETTINGSSTATE: telemHandler{"ARDrone3", "PilotingSettingsState", b.handlePilotingSettingsState},
 		// 7  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORD
 		// 8  = ARCOMMANDS_ID_ARDRONE3_CLASS_MEDIARECORDSTATE
 		// 9  = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSETTINGS
 		// 10 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSETTINGSSTATE
+		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSETTINGSSTATE: telemHandler{"ARDrone3", "NetworkSettingsState", b.handleNetworkSettingsStateFrame},
 		// 11 = ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGS
-		// 12 = ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGSSTATE
-		// 13 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORK
+		// 12: = ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGSSTATE
+		ARCOMMANDS_ID_ARDRONE3_CLASS_SPEEDSETTINGSSTATE: telemHandler{"ARDrone3", "SpeedSettingsState", b.handleSpeedSettingsState},
+		// 13 = ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORK  -> Command! Responses are via 14.
 		// 14:
-		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:         telemHandler{"ARDrone3", "NetworkState", b.handleNetworkSettingsStateFrame},
+		ARCOMMANDS_ID_ARDRONE3_CLASS_NETWORKSTATE:         telemHandler{"ARDrone3", "NetworkState", b.handleNetworkStateFrame},
 		// 15 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGS              byte = 15
 		// 16 = ARCOMMANDS_ID_ARDRONE3_CLASS_SETTINGSSTATE         byte = 16
 		// 17 = ARCOMMANDS_ID_ARDRONE3_CLASS_DIRECTORMODE          byte = 17
@@ -77,6 +82,10 @@ func (b *Bebop) populateTelemetryHandlers() {
 		ARCOMMANDS_ID_ARDRONE3_CLASS_CAMERASTATE:          telemHandler{"ARDrone3", "CameraState", b.handleCameraStateFrame},
 		// 29 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERING        byte = 29
 		// 30 = ARCOMMANDS_ID_ARDRONE3_CLASS_ANTIFLICKERINGSTATE   byte = 30
+		// 31 = ?
+		// 32 = ?
+		// 33 = ?
+		// 34 = PilotingEvent, not yet implemented, represents response to Piloting relative-movement instruction
 	}
 }
 
@@ -122,7 +131,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	// broke somehow.
 	// Context value is only used when the commandId was located; it is a human-readable
 	// reference to the command.
-	go func(c_handler telemHandler, commandId byte, frame *NetworkFrame) {
+	go func(c_handler *telemHandler, commandId byte, frame *NetworkFrame) {
 		path := c_handler.ProjectName+":"+c_handler.ClassName
 		cmdidstr := strconv.Itoa(int(commandId))
 		found, context, err := c_handler.HandlerFunc(commandId, frame)
@@ -132,7 +141,7 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		if !found {
 			b.sendUnknownTelemetry("Unknown commandId in "+path+": "+cmdidstr, frame.Data)
 		}
-	}(c_handler, commandId, frame)
+	}(&c_handler, commandId, frame)
 }
 
 var telemSendError = errors.New("Failed to send telemetry; channel full.")

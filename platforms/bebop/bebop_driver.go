@@ -21,6 +21,7 @@ var (
 		"emergency",
 		// Introspective telemetry
 		/// Camera
+		"allstateschanged"
 		"camerastate",
 		"camerasettingsstate",
 		"pictureformatchanged",
@@ -30,6 +31,15 @@ var (
 		"timelapsechanged",
 		"videoautorecordchanged",
 		/// Behaviour
+		"maxaltitudechanged",
+		"maxtiltchanged",
+		"absolutcontrolchanged",
+		"maxdistancechanged",
+		"noflyovermaxdistancechanged",
+		"maxverticalspeedchanged",
+		"maxrotationspeedchanged",
+		"hullprotectionchanged",
+		"outdoorchanged",
 		"flattrim",
 		"navigatehomestate",
 		"alertstate",
@@ -46,6 +56,10 @@ var (
 		"hometypechanged",
 		/// Network
 		"networkdisconnect",
+		"wifiscanlistchanged", // Sent one for each wifi scanned?
+		"allwifiscanchanged",  // Sent when above frames are all sent
+		"wifiauthchannellistchanged",  // Sent to indicate for 2.4/5ghz channels which are permitted, and where (indoors/outdoors)
+		"allwifiauthchannelchanged", // Sent to indicate device is finished sending the above?
 		/// Assets
 		"battery",
 		"massstorage",

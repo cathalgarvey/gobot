@@ -2,8 +2,36 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"encoding/binary"
 )
+
+// The "Camera" set are commands, not telemetry, so unsure why it's sending with
+// this ID. Let's implement and see?
+func (b *Bebop) handleCameraFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandId {
+	case 0: // Orientation; this is an instruction *to* the drone. It shouldn't even be here.
+		{
+			var telemdata struct{
+				Tilt uint8 `json:"tilt"`
+				Pan uint8 `json:"pan"`
+			}
+			err = binary.Read(bytes.NewReader(frame.Data[4:6]), binary.LittleEndian, &telemdata)
+			if err != nil {
+				return true, "Orientation", err
+			}
+			err = b.sendJSONTelemetry(frame, "orientation", telemdata)
+			if err != nil {
+				return true, "Orientation", err
+			}
+		}
+	default:
+		{
+			return false, "", nil
+		}
+	}
+	return true, "", nil
+}
 
 // Handles the important events that related to device state in the air: GPS position,
 // attitude, speed, etcetera.
@@ -196,6 +224,196 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			}
 		}
 	// End of PilotingState cases
+	default:
+		{
+			return false, "", nil
+		}
+	}
+	return true, "", nil
+}
+
+var notImplementedInFirmwareError = errors.New("Not implemented in Firmware yet, presumed impossible?")
+
+// Reports a bunch of settings pertaining to maxima, minima, and boolean switches
+// like "obey max height". Lots of unimplemented draft settings, too.
+func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandId {
+		case 0:
+			{
+				// MaxAltitudeChanged
+				var telemdata struct{
+					Current float32 `json:"current"`
+					Min float32 `json:"min"`
+					Max float32 `json:"max"`
+				}
+				err = binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
+				if err != nil {
+					return true, "MaxAltitudeChanged", err
+				}
+				err = b.sendJSONTelemetry(frame, "maxaltitudechanged", telemdata)
+				if err != nil {
+					return true, "MaxAltitudeChanged", err
+				}
+			}
+		case 1:
+			{
+				// MaxTiltChanged
+				var telemdata struct{
+					Current float32 `json:"current"`
+					Min float32 `json:"min"`
+					Max float32 `json:"max"`
+				}
+				err = binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
+				if err != nil {
+					return true, "MaxTiltChanged", err
+				}
+				err = b.sendJSONTelemetry(frame, "maxtiltchanged", telemdata)
+				if err != nil {
+					return true, "MaxTiltChanged", err
+				}
+			}
+		case 2:
+			{
+				// AbsolutControlChanged
+				var telemdata struct{
+					On uint8 `json:"on"`
+				}
+				err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
+				if err != nil {
+					return true, "AbsolutControlChanged", err
+				}
+				err = b.sendJSONTelemetry(frame, "absolutcontrolchanged", telemdata)
+				if err != nil {
+					return true, "AbsolutControlChanged", err
+				}
+			}
+		case 3:
+			{
+				// MaxDistanceChanged
+				var telemdata struct{
+					Current float32 `json:"current"`
+					Min float32 `json:"min"`
+					Max float32 `json:"max"`
+				}
+				err = binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
+				if err != nil {
+					return true, "MaxDistanceChanged", err
+				}
+				err = b.sendJSONTelemetry(frame, "maxdistancechanged", telemdata)
+				if err != nil {
+					return true, "MaxDistanceChanged", err
+				}
+			}
+		// 4 = NoFlyOverMaxDistanceChanged
+		case 4:
+			{
+				// NoFlyOverMaxDistanceChanged
+				var telemdata struct{
+					ShouldNotFlyOver uint8 `json:"shouldNotFlyOver"`
+				}
+				err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
+				if err != nil {
+					return true, "NoFlyOverMaxDistanceChanged", err
+				}
+				err = b.sendJSONTelemetry(frame, "noflyovermaxdistancechanged", telemdata)
+				if err != nil {
+					return true, "NoFlyOverMaxDistanceChanged", err
+				}
+			}
+		case 5:  // AutonomousFlightMaxHorizontalSpeed (Not Implemented in Firmware) (But is it numerically assigned??)
+			{
+				return true, "AutonomousFlightMaxHorizontalSpeed", notImplementedInFirmwareError
+			}
+		case 6: // AutonomousFlightMaxVerticalSpeed (Not Implemented in Firmware) (But is it numerically assigned??)
+			{
+				return true, "AutonomousFlightMaxVerticalSpeed", notImplementedInFirmwareError
+			}
+		case 7: // AutonomousFlightMaxHorizontalAcceleration (Not Implemented in Firmware)
+			{
+				return true, "AutonomousFlightMaxHorizontalAcceleration", notImplementedInFirmwareError
+			}
+		case 8: // AutonomousFlightMaxVerticalAcceleration (Not implemented in firmware)
+			{
+				return true, "AutonomousFlightMaxVerticalAcceleration", notImplementedInFirmwareError
+			}
+		case 9: // AutonomousFlightMaxRotationSpeed (Not implemented in firmware)
+			{
+				return true, "AutonomousFlightMaxRotationSpeed", notImplementedInFirmwareError
+			}
+	default:
+		{
+			return false, "", nil
+		}
+	}
+	return true, "", nil
+}
+
+func (b *Bebop) handleSpeedSettingsState(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandId {
+  case 0:
+		// MaxVerticalSpeedChanged - Max vertical speed sent by product
+		{
+			var telemdata struct{
+				Current float32 `json:"current"`
+				Min float32 `json:"min"`
+				Max float32 `json:"max"`
+			}
+			err = binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
+			if err != nil {
+				return true, "MaxVerticalSpeedChanged", err
+			}
+			err = b.sendJSONTelemetry(frame, "maxverticalspeedchanged", telemdata)
+			if err != nil {
+				return true, "MaxVerticalSpeedChanged", err
+			}
+		}
+	case 1:
+		// MaxRotationSpeedChanged - Max rotation speed sent by product
+		{
+			var telemdata struct{
+				Current float32 `json:"current"`
+				Min float32 `json:"min"`
+				Max float32 `json:"max"`
+			}
+			err = binary.Read(bytes.NewReader(frame.Data[4:16]), binary.LittleEndian, &telemdata)
+			if err != nil {
+				return true, "MaxRotationSpeedChanged", err
+			}
+			err = b.sendJSONTelemetry(frame, "maxrotationspeedchanged", telemdata)
+			if err != nil {
+				return true, "MaxRotationSpeedChanged", err
+			}
+		}
+	case 2:
+		// HullProtectionChanged - Presence of hull protection sent by product
+		{
+			var telemdata struct{
+				Present uint8 `json:"present"`
+			}
+			err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
+			if err != nil {
+				return true, "HullProtectionChanged", err
+			}
+			err = b.sendJSONTelemetry(frame, "hullprotectionchanged", telemdata)
+			if err != nil {
+				return true, "HullProtectionChanged", err
+			}
+		}
+	case 3:
+		// OutdoorChanged - Outdoor property sent by product
+		{
+			var telemdata struct{
+				Present uint8 `json:"present"`
+			}
+			err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
+			if err != nil {
+				return true, "OutdoorChanged", err
+			}
+			err = b.sendJSONTelemetry(frame, "outdoorchanged", telemdata)
+			if err != nil {
+				return true, "OutdoorChanged", err
+			}
+		}
 	default:
 		{
 			return false, "", nil
@@ -458,6 +676,91 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 		{
 			return false, "", nil
 		}
+	}
+	return true, "", nil
+}
+
+func (b *Bebop) handleNetworkStateFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandId {
+		case 0: //WifiScanListChanged (This is a Map, followed by AllWifiScanChanged to signal end?)
+			{
+				var (
+					Ssid string
+					Rssi int16
+					Band string
+					Channel uint8
+					rest []byte
+				)
+				Ssid, rest, err = parseNullTermedString(frame.Data[4:])
+				if err != nil {
+					return true, "WifiScanListChanged", err
+				}
+				Rssi = int16(binary.LittleEndian.Uint16(rest[:2]))
+				Band, err = decodeEnum(rest[2:6], []string{"2_4ghz", "5ghz"})
+				if err != nil {
+					return true, "WifiScanListChanged", err
+				}
+				Channel = uint8(rest[6])
+				telemdata := struct{
+					Ssid string `json:"ssid"`
+					Rssi int16 `json:"rssi"`
+					Band string `json:"band"`
+					Channel uint8 `json:"channel"`
+				}{Ssid, Rssi, Band, Channel}
+				err = b.sendJSONTelemetry(frame, "wifiscanlistchanged", telemdata)
+				if err != nil {
+					return true, "WifiScanListChanged", err
+				}
+			}
+		case 1: // AllWifiScanChanged - Sent when WifiScanListChanged events are finished?
+			{
+				err = b.sendEmptyTelemetry("allwifiscanchanged")
+				if err != nil {
+					return true, "AllWifiScanChanged", err
+				}
+			}
+		case 2: // WifiAuthChannelListChanged, indicates which channels are permitted for use outside?
+		        // Is this a geography/legislation thing? "List" suggests order is important, seems not though?
+			{
+				var (
+					Band string
+					Channel uint8
+					In_or_out uint8
+					AllowedOutside bool
+					AllowedInside bool
+				)
+				Band, err = decodeEnum(frame.Data[4:8], []string{"2_4ghz", "5ghz"})
+				if err != nil {
+					return true, "WifiAuthChannelListChanged", err
+				}
+				Channel = uint8(frame.Data[8])
+				In_or_out = uint8(frame.Data[9])
+				AllowedOutside = 0<(In_or_out & 1)
+				AllowedInside = 0<(In_or_out & 2)
+				telemdata := struct{
+					Band string `json:"band"`
+					Channel uint8 `json:"channel"`
+					In_or_out uint8 `json:"in_or_out"`
+					AllowedOutside bool `json:"allowedOutside"`
+					AllowedInside bool `json:"allowedInside"`
+				}{Band, Channel, In_or_out, AllowedOutside, AllowedInside}
+				err = b.sendJSONTelemetry(frame, "wifiauthchannellistchanged", telemdata)
+				if err != nil {
+					return true, "WifiAuthChannelListChanged", err
+				}
+			}
+		case 3:
+			{
+				// AllWifiAuthChannelChanged, sent when authorised list is fully sent.
+				err = b.sendEmptyTelemetry("allwifiauthchannelchanged")
+				if err != nil {
+					return true, "AllWifiAuthChannelChanged", err
+				}
+			}
+		default:
+			{
+				return false, "", nil
+			}
 	}
 	return true, "", nil
 }

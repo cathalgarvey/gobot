@@ -11,6 +11,10 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_ALLSTATESCHANGED:
 		{
 			// Is this even useful telemetry? Ignoring for now
+			err = b.sendEmptyTelemetry("allstateschanged")
+			if err != nil {
+				return true, "AllStatesChanged", err
+			}
 		}
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_BATTERYSTATECHANGED:
 		{
@@ -68,7 +72,10 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTDATECHANGED:
 		// Date in ISO-8601
 		{
-			dates := string(frame.Data[4:]) // Parse to real time object? ISO-8601
+			dates, _, err := parseNullTermedString(frame.Data[4:])
+			if err != nil {
+				return true, "CurrentDateChanged", err
+			}
 			err = b.sendJSONTelemetry(frame, "currentdate", struct {
 				Date string `json:"date"`
 			}{Date: dates})
@@ -79,7 +86,10 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_CURRENTTIMECHANGED:
 		// Time in ISO-8601
 		{
-			times := string(frame.Data[4:]) // Parse to real time object? ISO-8601
+			times, _, err := parseNullTermedString(frame.Data[4:])
+			if err != nil {
+				return true, "CurrentTimeChanged", err
+			}
 			err = b.sendJSONTelemetry(frame, "currenttime", struct {
 				Time string `json:"time"`
 			}{Time: times})
@@ -276,7 +286,7 @@ func (b *Bebop) handleFlightPlanState(commandId byte, frame *NetworkFrame) (foun
 	var telemdata struct {
 		AvailabilityState uint8 `json:"availabilityState"`
 	}
-	err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata.AvailabilityState)
+	err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &telemdata)
 	if err != nil {
 		return true, "AvailabilityStateChanged", err
 	}

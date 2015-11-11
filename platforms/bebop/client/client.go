@@ -197,9 +197,7 @@ func New() *Bebop {
 		},
 		tmpFrame:          tmpFrame{},
 		video:             make(chan []byte),
-		//telemetry:         make(chan bbtelem.TelemetryPacket, 10),
-		// TODO / DEBUG: Removing channel size to ensure I'm not losing packets..
-		telemetry:         make(chan bbtelem.TelemetryPacket),
+		telemetry:         make(chan bbtelem.TelemetryPacket, 10),
 		telemetryHandlers: make(map[byte]map[byte]telemHandler),
 		endTelemetry:      make(chan struct{}),
 		writeChan:         make(chan []byte),
