@@ -61,6 +61,7 @@ func (a *BebopAdaptor) Connect() (errs []error) {
 	return
 }
 
+// Telemetry returns a channel on which to receive Telemetry from the device.
 func (a *BebopAdaptor) Telemetry() chan bbtelem.TelemetryPacket {
 	return a.drone.Telemetry()
 }

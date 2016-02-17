@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 	"strconv"
+
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
+// Telemetry returns a channel on which to receive telemetry packets.
 func (b *Bebop) Telemetry() chan bbtelem.TelemetryPacket {
 	return b.telemetry
 }
@@ -97,20 +99,20 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 	var (
 		commandProject byte // Seems to increment continuously on some frames?
 		commandClass   byte
-		commandId16    uint16
-		commandId      byte
+		commandID16    uint16
+		commandID      byte
 	)
 	// For single-byte values is this overkill?
 	binary.Read(bytes.NewReader(frame.Data[0:1]), binary.LittleEndian, &commandProject)
 	binary.Read(bytes.NewReader(frame.Data[1:2]), binary.LittleEndian, &commandClass)
-	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandId16)
-	commandId = byte(commandId16)
+	binary.Read(bytes.NewReader(frame.Data[2:4]), binary.LittleEndian, &commandID16)
+	commandID = byte(commandID16)
 
-	p_map, ok := b.telemetryHandlers[commandProject]
+	pMap, ok := b.telemetryHandlers[commandProject]
 	if !ok {
 		b.sendUnknownTelemetry("Couldn't find handlers for project: "+strconv.Itoa(int(commandProject)), frame.Data)
 	}
-	c_handler, ok := p_map[commandClass]
+	cHandler, ok := pMap[commandClass]
 	if !ok {
 		var proj string
 		switch commandProject {
@@ -127,24 +129,26 @@ func (b *Bebop) handleIncomingDataFrame(frame *NetworkFrame) {
 		return
 	}
 	// Handlers return (true, nil) if everything went well, or (false, nil) if
-	// handler for the commandId wasn't found, or (true, error) if the handler
+	// handler for the commandID wasn't found, or (true, error) if the handler
 	// broke somehow.
-	// Context value is only used when the commandId was located; it is a human-readable
+	// Context value is only used when the commandID was located; it is a human-readable
 	// reference to the command.
-	go func(c_handler *telemHandler, commandId byte, frame *NetworkFrame) {
-		path := c_handler.ProjectName + ":" + c_handler.ClassName
-		cmdidstr := strconv.Itoa(int(commandId))
-		found, context, err := c_handler.HandlerFunc(commandId, frame)
+	go func(cHandler *telemHandler, commandID byte, frame *NetworkFrame) {
+		path := cHandler.ProjectName + ":" + cHandler.ClassName
+		cmdidstr := strconv.Itoa(int(commandID))
+		found, context, err := cHandler.HandlerFunc(commandID, frame)
 		if err != nil {
-			b.sendRuntimeError("Error in handler for "+path+", commandId "+cmdidstr+", context '"+context+"'", err, frame.Data)
+			b.sendRuntimeError("Error in handler for "+path+", commandID "+cmdidstr+", context '"+context+"'", err, frame.Data)
 		}
 		if !found {
-			b.sendUnknownTelemetry("Unknown commandId in "+path+": "+cmdidstr, frame.Data)
+			b.sendUnknownTelemetry("Unknown commandID in "+path+": "+cmdidstr, frame.Data)
 		}
-	}(&c_handler, commandId, frame)
+	}(&cHandler, commandID, frame)
 }
 
-var telemSendError = errors.New("Failed to send telemetry; channel full.")
+// ErrTelemSend occurs in dispatchTelemetry, an internal method, and may be propagated. It is sent
+// when the internal channel for telemetry is full.
+var ErrTelemSend = errors.New("Failed to send telemetry; channel full.")
 
 // Attempts to send data with a given title across the telemetry channel. If the
 // chan is full then the default simply drops the data.
@@ -161,7 +165,7 @@ func (b *Bebop) dispatchTelemetry(telem *bbtelem.TelemetryPacket) error {
 	// If buffer above is full (10 unread), abandon send.
 	default:
 		{
-			return telemSendError
+			return ErrTelemSend
 		}
 	}
 }
@@ -192,16 +196,16 @@ func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) error {
 
 // Shortcut method for issuing errors through Telemetry
 func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) error {
-	internal_err := b.dispatchTelemetry(&bbtelem.TelemetryPacket{
+	internalErr := b.dispatchTelemetry(&bbtelem.TelemetryPacket{
 		Title:   "error",
 		Error:   err,
 		Comment: comment,
 		Payload: data,
 	})
-	if internal_err != nil {
-		fmt.Println("RUNTIME ERROR: ", internal_err.Error())
+	if internalErr != nil {
+		fmt.Println("RUNTIME ERROR: ", internalErr.Error())
 	}
-	return internal_err
+	return internalErr
 }
 
 // Handles the very common job of encoding to JSON, while handling errors. Errors
@@ -215,17 +219,22 @@ func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj in
 	return b.sendTelemetry(eventTitle, payload)
 }
 
-// Common task: Decode a 4-byte enum, then use it to index some strings representing enum value
-var enumOutOfRangeError error = errors.New("Enum value fell outside expected range.")
-var enumBadSizeError error = errors.New("Wrong size binary given for a Bebop enum. Expected 4.")
+// ErrEnumOutOfRange can be returned by decodeEnum, an internal function, and may be propagated
+// elsewhere.
+var ErrEnumOutOfRange = errors.New("Enum value fell outside expected range.")
 
+// ErrEnumBadSize can be returned by decodeEnum, an internal function, and may be propagated
+// elsewhere.
+var ErrEnumBadSize = errors.New("Wrong size binary given for a Bebop enum. Expected 4.")
+
+// Common task: Decode a 4-byte enum, then use it to index some strings representing enum value
 func decodeEnum(raw []byte, vals []string) (string, error) {
 	var (
 		evalue  uint32
 		evaluei int
 	)
 	if len(raw) != 4 {
-		return "", enumBadSizeError
+		return "", ErrEnumBadSize
 	}
 	err := binary.Read(bytes.NewReader(raw), binary.LittleEndian, &evalue)
 	if err != nil {
@@ -233,19 +242,20 @@ func decodeEnum(raw []byte, vals []string) (string, error) {
 	}
 	evaluei = int(evalue)
 	if evaluei < 0 || evaluei > len(vals)-1 {
-		return "", enumOutOfRangeError
+		return "", ErrEnumOutOfRange
 	}
 	return vals[evaluei], nil
 }
 
-// Given a frame presumed to contain a null-ended string, return the string
-// and the reamining bytes after the null
-var notStringError = errors.New("Could not locate a NUL byte in presumed NUL-terminated string")
+// ErrNotString is returned if a string expected to end in NUL, didn't (returned from internal function parseNullTermedString).
+var ErrNotString = errors.New("Could not locate a NUL byte in presumed NUL-terminated string")
 
+//Given a frame presumed to contain a null-ended string, return the string
+// and the reamining bytes after the null
 func parseNullTermedString(dataframe []byte) (string, []byte, error) {
 	nul := bytes.IndexByte(dataframe, byte(0))
 	if nul == -1 {
-		return "", nil, notStringError
+		return "", nil, ErrNotString
 	}
 	return string(dataframe[:nul]), dataframe[nul+1:], nil
 }

@@ -27,12 +27,12 @@ func main() {
 
 	work := func() {
     drone.HullProtection(true)
-		drone.TakeOff()
 		gobot.On(drone.Event("flying"), func(data interface{}) {
 			gobot.After(3*time.Second, func() {
 				drone.Land()
 			})
 		})
+		drone.TakeOff()
 	}
 
 	robot := gobot.NewRobot("drone",

@@ -1,16 +1,17 @@
 package bebop
 
 import (
-	//"fmt"
 	"github.com/hybridgroup/gobot"
 )
 
 var (
-	_           gobot.Driver = (*BebopDriver)(nil)
-	bebopEvents              = []string{
+	_ gobot.Driver = (*BebopDriver)(nil)
+	// BebopEvents is a non-exhaustive list of events that may be posted by
+	// an active Bebop object. TODO: Namespace these in-string for sanity?
+	BebopEvents = []string{
 		// Generic events
 		"unknown",
-		"unknownProject", // So common it merits its own.. handling code must be picking up non data frames?
+		"unknownProject",
 		"error",
 		// Gross state telemetry; important enough that this enum got broken out. :)
 		"landed",
@@ -99,17 +100,17 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *BebopDriver {
 		Eventer:      gobot.NewEventer(),
 		endTelemetry: make(chan struct{}),
 	}
-	for _, e := range bebopEvents {
+	for _, e := range BebopEvents {
 		e := e
 		d.AddEvent(e)
 	}
 	return d
 }
 
-// Use given function to subscribe to all known Bebop Events,
+// Debug registers a given function to subscribe to all known Bebop Events,
 // including "unknown" and "error"
 func (a *BebopDriver) Debug(f func(string, []byte)) {
-	for _, e := range bebopEvents {
+	for _, e := range BebopEvents {
 		e := e
 		gobot.On(a.Event(e), func(data interface{}) {
 			switch t := data.(type) {
@@ -152,7 +153,7 @@ func (a *BebopDriver) Start() (errs []error) {
 					// and/or commentary data in addition to a "Title" property.
 					// "Title" is the name of the event to send the JSON payload along.
 					if t.Title == "error" || t.Title == "unknown" {
-						payload := make([]byte, 0)
+						var payload []byte
 						payload = append(payload, []byte(t.Comment)...)
 						payload = append(payload, []byte(":: ")...)
 						if t.Error != nil {
@@ -161,7 +162,6 @@ func (a *BebopDriver) Start() (errs []error) {
 						payload = append(payload, t.Payload...)
 						gobot.Publish(a.Event(t.Title), payload)
 					} else {
-						// fmt.Println("Issuing telemetry: ", t.Title)
 						gobot.Publish(a.Event(t.Title), t.Payload)
 					}
 				}
