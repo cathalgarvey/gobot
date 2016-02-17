@@ -24,6 +24,7 @@ type drone interface {
 	Connect() error
 	Video() chan []byte
 	Telemetry() chan bbtelem.TelemetryPacket
+	StopTelemetry() error
 	StartRecording() error
 	StopRecording() error
 	HullProtection(protect bool) error

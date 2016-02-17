@@ -219,6 +219,12 @@ func (b *Bebop) sendJSONTelemetry(frame *NetworkFrame, eventTitle string, obj in
 	return b.sendTelemetry(eventTitle, payload)
 }
 
+// StopTelemetry stops further telemetry from being sent
+func (b *Bebop) StopTelemetry() error {
+	close(b.endTelemetry)
+	return nil
+}
+
 // ErrEnumOutOfRange can be returned by decodeEnum, an internal function, and may be propagated
 // elsewhere.
 var ErrEnumOutOfRange = errors.New("Enum value fell outside expected range.")

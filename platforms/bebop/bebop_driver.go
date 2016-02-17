@@ -139,6 +139,13 @@ func (a *BebopDriver) adaptor() *BebopAdaptor {
 	return a.Connection().(*BebopAdaptor)
 }
 
+// StopTelemetry stops further telemetry messages being posted
+// to the event queue, and closes the channel from the adaptor also.
+func (a *BebopDriver) StopTelemetry() error {
+	close(a.endTelemetry)
+	return a.adaptor().drone.StopTelemetry()
+}
+
 // Start starts the BebopDriver.
 // This spins out a goroutine to read telemetry from the adaptor and post
 // events;
@@ -147,6 +154,10 @@ func (a *BebopDriver) Start() (errs []error) {
 		T := a.adaptor().drone.Telemetry()
 		for {
 			select {
+			case <-a.endTelemetry:
+				{
+					return
+				}
 			case t := <-T:
 				{
 					// t is a bbtelem.TelemetryPacket object which may contain error, JSON payload,
@@ -164,10 +175,6 @@ func (a *BebopDriver) Start() (errs []error) {
 					} else {
 						gobot.Publish(a.Event(t.Title), t.Payload)
 					}
-				}
-			case <-a.endTelemetry:
-				{
-					return
 				}
 			}
 		}

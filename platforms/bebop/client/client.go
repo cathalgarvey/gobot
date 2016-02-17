@@ -185,7 +185,7 @@ type Bebop struct {
 
 // New returns a Bebop client object.
 func New() *Bebop {
-	return &Bebop{
+	b := Bebop{
 		IP:                    "192.168.42.1",
 		NavData:               make(map[string]string),
 		C2dPort:               54321,
@@ -200,10 +200,15 @@ func New() *Bebop {
 			Gaz:   0,
 			Psi:   0,
 		},
-		tmpFrame:  tmpFrame{},
-		video:     make(chan []byte),
-		writeChan: make(chan []byte),
+		tmpFrame:          tmpFrame{},
+		video:             make(chan []byte),
+		writeChan:         make(chan []byte),
+		telemetry:         make(chan bbtelem.TelemetryPacket),
+		telemetryHandlers: make(map[byte]map[byte]telemHandler),
+		endTelemetry:      make(chan struct{}),
 	}
+	b.populateTelemetryHandlers()
+	return &b
 }
 
 func (b *Bebop) write(buf []byte) (int, error) {
@@ -211,6 +216,7 @@ func (b *Bebop) write(buf []byte) (int, error) {
 	return 0, nil
 }
 
+// Discover a Bebop through the Wifi network
 func (b *Bebop) Discover() error {
 	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", b.IP, b.DiscoveryPort))
 
@@ -245,6 +251,7 @@ func (b *Bebop) Discover() error {
 	return b.discoveryClient.Close()
 }
 
+// Connect to a Bebop, using autodiscovery.
 func (b *Bebop) Connect() error {
 	err := b.Discover()
 
@@ -319,6 +326,7 @@ func (b *Bebop) Connect() error {
 	return nil
 }
 
+// FlatTrim issues a flat-trim command.
 func (b *Bebop) FlatTrim() error {
 	//
 	// ARCOMMANDS_Generator_GenerateARDrone3PilotingFlatTrim
@@ -338,6 +346,7 @@ func (b *Bebop) FlatTrim() error {
 	return err
 }
 
+// GenerateAllStates sends a Project:Common:AllStates command to the Bebop.
 func (b *Bebop) GenerateAllStates() error {
 	//
 	// ARCOMMANDS_Generator_GenerateCommonCommonAllStates
@@ -357,6 +366,7 @@ func (b *Bebop) GenerateAllStates() error {
 	return err
 }
 
+// TakeOff does what it sounds like!
 func (b *Bebop) TakeOff() error {
 	//
 	//  ARCOMMANDS_Generator_GenerateARDrone3PilotingTakeOff
@@ -376,6 +386,7 @@ func (b *Bebop) TakeOff() error {
 	return err
 }
 
+// Land does what it sounds like
 func (b *Bebop) Land() error {
 	//
 	// ARCOMMANDS_Generator_GenerateARDrone3PilotingLanding
@@ -395,46 +406,55 @@ func (b *Bebop) Land() error {
 	return err
 }
 
+// Up issues an instruction to ascend
 func (b *Bebop) Up(val int) error {
 	b.Pcmd.Gaz = validatePitch(val)
 	return nil
 }
 
+// Down issues an instruction to descend
 func (b *Bebop) Down(val int) error {
 	b.Pcmd.Gaz = validatePitch(val) * -1
 	return nil
 }
 
+// Forward issues an instruction to pitch forward
 func (b *Bebop) Forward(val int) error {
 	b.Pcmd.Pitch = validatePitch(val)
 	return nil
 }
 
+// Backward issues an instruction to pitch backward
 func (b *Bebop) Backward(val int) error {
 	b.Pcmd.Pitch = validatePitch(val) * -1
 	return nil
 }
 
+// Right issues an instruction to roll right
 func (b *Bebop) Right(val int) error {
 	b.Pcmd.Roll = validatePitch(val)
 	return nil
 }
 
+// Left issues an instruction to roll left
 func (b *Bebop) Left(val int) error {
 	b.Pcmd.Roll = validatePitch(val) * -1
 	return nil
 }
 
+// Clockwise issues a yaw instruction clockwise
 func (b *Bebop) Clockwise(val int) error {
 	b.Pcmd.Yaw = validatePitch(val)
 	return nil
 }
 
+// CounterClockwise issues a yaw instruction counter-clockwise
 func (b *Bebop) CounterClockwise(val int) error {
 	b.Pcmd.Yaw = validatePitch(val) * -1
 	return nil
 }
 
+// Stop resets the Bebop.Pcmd object.
 func (b *Bebop) Stop() error {
 	b.Pcmd = Pcmd{
 		Flag:  1,
@@ -559,6 +579,7 @@ func (b *Bebop) packetReceiver(buf []byte) {
 	}
 }
 
+// StartRecording instructs the Bebop to begin recording to built-in memory
 func (b *Bebop) StartRecording() error {
 	buf := b.videoRecord(ARCOMMANDS_ARDRONE3_MEDIARECORD_VIDEO_RECORD_START)
 
@@ -566,6 +587,7 @@ func (b *Bebop) StartRecording() error {
 	return nil
 }
 
+// StopRecording instructs the Bebop to cease recording.
 func (b *Bebop) StopRecording() error {
 	buf := b.videoRecord(ARCOMMANDS_ARDRONE3_MEDIARECORD_VIDEO_RECORD_STOP)
 
@@ -601,10 +623,12 @@ func (b *Bebop) videoRecord(state byte) *bytes.Buffer {
 	return cmd
 }
 
+// Video returns the video frame channel
 func (b *Bebop) Video() chan []byte {
 	return b.video
 }
 
+// HullProtection modifies onboard flight settings to account for the hull shield
 func (b *Bebop) HullProtection(protect bool) error {
 	//
 	// ARCOMMANDS_Generator_GenerateARDrone3SpeedSettingsHullProtection
@@ -631,6 +655,7 @@ func (b *Bebop) HullProtection(protect bool) error {
 	return err
 }
 
+// Outdoor modifies settings to account for being outdoors.
 func (b *Bebop) Outdoor(outdoor bool) error {
 	//
 	// ARCOMMANDS_Generator_GenerateARDrone3SpeedSettingsOutdoor
