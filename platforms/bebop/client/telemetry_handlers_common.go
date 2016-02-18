@@ -3,15 +3,17 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 // Internal states, like settings, battery level, storage, date/time,
-func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
-	switch commandId {
+func (b *Bebop) handleCommonStateFrame(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandID {
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_ALLSTATESCHANGED:
 		{
 			// Is this even useful telemetry? Ignoring for now
-			err = b.sendEmptyTelemetry("allstateschanged")
+			err = b.sendEmptyTelemetry(bbtelem.Allstateschanged)
 			if err != nil {
 				return true, "AllStatesChanged", err
 			}
@@ -26,7 +28,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "BatteryStateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "battery", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Battery, telemdata)
 			if err != nil {
 				return true, "BatteryStateChanged", err
 			}
@@ -34,17 +36,17 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_MASSSTORAGESTATELISTCHANGED:
 		{
 			var (
-				mass_storage_id uint8
+				massStorageID uint8
 			)
-			err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &mass_storage_id)
+			err = binary.Read(bytes.NewReader(frame.Data[4:5]), binary.LittleEndian, &massStorageID)
 			if err != nil {
 				return true, "MassStorageStateListChanged", err
 			}
-			mass_storage_name := string(frame.Data[5:]) // ? Encoding? Length? Huh?
-			err = b.sendJSONTelemetry(frame, "massstorage", struct {
-				Mass_storage_id uint8  `json:"Mass_storage_id"`
-				Name            string `json:"name"`
-			}{Mass_storage_id: mass_storage_id, Name: mass_storage_name})
+			massStorageName := string(frame.Data[5:]) // ? Encoding? Length? Huh?
+			err = b.sendJSONTelemetry(frame, bbtelem.Massstorage, struct {
+				MassStorageID uint8  `json:"mass_storage_id"`
+				Name          string `json:"name"`
+			}{MassStorageID: massStorageID, Name: massStorageName})
 			if err != nil {
 				return true, "MassStorageStateListChanged", err
 			}
@@ -53,18 +55,18 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 		// Information on a particular volume? Volunteered, or in response to a query?
 		{
 			var telemdata struct {
-				Mass_storage_id uint8  `json:"mass_storage_id"`
-				Size            uint32 `json:"size"`
-				Used_size       uint32 `json:"used_size"`
-				Plugged         uint8  `json:"plugged"`
-				Full            uint8  `json:"full"`
-				Internal        uint8  `json:"internal"`
+				MassStorageID uint8  `json:"mass_storage_id"`
+				Size          uint32 `json:"size"`
+				UsedSize      uint32 `json:"used_size"`
+				Plugged       uint8  `json:"plugged"`
+				Full          uint8  `json:"full"`
+				Internal      uint8  `json:"internal"`
 			}
 			err = binary.Read(bytes.NewReader(frame.Data[4:72]), binary.LittleEndian, &telemdata)
 			if err != nil {
 				return true, "MassStorageInfoStateListChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "massstorageinfo", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Massstorageinfo, telemdata)
 			if err != nil {
 				return true, "MassStorageInfoStateListChanged", err
 			}
@@ -76,7 +78,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "CurrentDateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "currentdate", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Currentdate, struct {
 				Date string `json:"date"`
 			}{Date: dates})
 			if err != nil {
@@ -90,7 +92,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "CurrentTimeChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "currenttime", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Currenttime, struct {
 				Time string `json:"time"`
 			}{Time: times})
 			if err != nil {
@@ -101,15 +103,15 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 		// Remaining space on volume, with estimate of photo space/recording time?
 		{
 			var telemdata struct {
-				Free_space      uint32 `json:"free_space"`
-				Rec_time        uint16 `json:"rec_time"`
-				Photo_remaining uint32 `json:"photo_remaining"`
+				FreeSpace      uint32 `json:"free_space"`
+				RecTime        uint16 `json:"rec_time"`
+				PhotoRemaining uint32 `json:"photo_remaining"`
 			}
 			err = binary.Read(bytes.NewReader(frame.Data[4:80]), binary.LittleEndian, &telemdata)
 			if err != nil {
 				return true, "MassStorageInfoRemainingListChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "massstorageinforemaining", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Massstorageinforemaining, telemdata)
 			if err != nil {
 				return true, "MassStorageInfoRemainingListChanged", err
 			}
@@ -123,7 +125,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "WifiSignalChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "wifisignal", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Wifisignal, telemdata)
 			if err != nil {
 				return true, "WifiSignalChanged", err
 			}
@@ -135,7 +137,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "SensorStatesListChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "sensorstates", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Sensorstates, struct {
 				SensorName  string `json:"sensorName"`
 				SensorState bool   `json:"sensorState"`
 			}{SensorName: sensorName, SensorState: sensorState})
@@ -150,7 +152,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "ProductModel", err
 			}
-			err = b.sendJSONTelemetry(frame, "dronemodel", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Dronemodel, struct {
 				Model string `json:"model"`
 			}{Model: modelstr})
 			if err != nil {
@@ -160,7 +162,7 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 	case ARCOMMANDS_ID_COMMON_COMMONSTATE_CMD_COUNTRYLISTKNOWN:
 		{
 			ccodes := string(frame.Data[4:])
-			err = b.sendJSONTelemetry(frame, "countrycodes", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Countrycodes, struct {
 				CountryCodes string `json:"countryCodes"`
 			}{ccodes})
 			if err != nil {
@@ -176,15 +178,15 @@ func (b *Bebop) handleCommonStateFrame(commandId byte, frame *NetworkFrame) (fou
 }
 
 // Device can volunteer version info sometimes.
-func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
-	switch commandId {
+func (b *Bebop) handleVersionStateFrames(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandID {
 	case 0: // ControllerLibARCommandsVersion
 		{
 			version, _, err := parseNullTermedString(frame.Data[4:])
 			if err != nil {
 				return true, "ControllerLibARCommandsVersion", err
 			}
-			err = b.sendJSONTelemetry(frame, "controllerlibversion", struct{ Version string }{Version: version})
+			err = b.sendJSONTelemetry(frame, bbtelem.Controllerlibversion, struct{ Version string }{Version: version})
 			if err != nil {
 				return true, "ControllerLibARCommandsVersion", err
 			}
@@ -195,7 +197,7 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "SkycontrollerLibARCommandsVersion", err
 			}
-			err = b.sendJSONTelemetry(frame, "skycontrollerlibversion", struct{ Version string }{Version: version})
+			err = b.sendJSONTelemetry(frame, bbtelem.Skycontrollerlibversion, struct{ Version string }{Version: version})
 			if err != nil {
 				return true, "SkycontrollerLibARCommandsVersion", err
 			}
@@ -206,7 +208,7 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "DeviceLibARCommandsVersion", err
 			}
-			err = b.sendJSONTelemetry(frame, "devicelibversion", struct{ Version string }{Version: version})
+			err = b.sendJSONTelemetry(frame, bbtelem.Devicelibversion, struct{ Version string }{Version: version})
 			if err != nil {
 				return true, "DeviceLibARCommandsVersion", err
 			}
@@ -220,8 +222,8 @@ func (b *Bebop) handleVersionStateFrames(commandId byte, frame *NetworkFrame) (f
 }
 
 // Handle common Mavlink/Flightplan state frame
-func (b *Bebop) handleMavlinkStateFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
-	switch commandId {
+func (b *Bebop) handleMavlinkStateFrame(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandID {
 	case 0: // MavlinkFilePlayingStateChanged,  Playing state of a mavlink flight plan
 		{
 			state, err := decodeEnum(frame.Data[4:8], []string{"playing", "stopped", "paused"})
@@ -236,7 +238,7 @@ func (b *Bebop) handleMavlinkStateFrame(commandId byte, frame *NetworkFrame) (fo
 			if err != nil {
 				return true, "MavlinkFilePlayingStateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "mavlinkfileplaying", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Mavlinkfileplaying, struct {
 				State    string `json:"state"`
 				Filepath string `json:"filepath"`
 				Type     string `json:"type"`
@@ -253,10 +255,10 @@ func (b *Bebop) handleMavlinkStateFrame(commandId byte, frame *NetworkFrame) (fo
 	return true, "", nil
 }
 
-func (b *Bebop) handleCameraSettingsState(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+func (b *Bebop) handleCameraSettingsState(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
 	// Appears in static log
 	// Only one command, "camerasettingsstate", Id == 0
-	if commandId != 0 {
+	if commandID != 0 {
 		return false, "", nil
 	}
 	var telemdata struct {
@@ -270,17 +272,17 @@ func (b *Bebop) handleCameraSettingsState(commandId byte, frame *NetworkFrame) (
 	if err != nil {
 		return true, "CameraSettingsState", err
 	}
-	err = b.sendJSONTelemetry(frame, "camerasettingsstate", telemdata)
+	err = b.sendJSONTelemetry(frame, bbtelem.Camerasettingsstate, telemdata)
 	if err != nil {
 		return true, "CameraSettingsState", err
 	}
 	return true, "", nil
 }
 
-func (b *Bebop) handleFlightPlanState(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+func (b *Bebop) handleFlightPlanState(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
 	// Dumps regularly
 	// One command "AvailabilityStateChanged", Id == 0
-	if commandId != 0 {
+	if commandID != 0 {
 		return false, "", nil
 	}
 	var telemdata struct {
@@ -290,25 +292,25 @@ func (b *Bebop) handleFlightPlanState(commandId byte, frame *NetworkFrame) (foun
 	if err != nil {
 		return true, "AvailabilityStateChanged", err
 	}
-	err = b.sendJSONTelemetry(frame, "availabilitystatechanged", telemdata)
+	err = b.sendJSONTelemetry(frame, bbtelem.Availabilitystatechanged, telemdata)
 	if err != nil {
 		return true, "AvailabilityStateChanged", err
 	}
 	return true, "", nil
 }
 
-func (b *Bebop) handleFlightPlanEvent(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
-	switch commandId {
+func (b *Bebop) handleFlightPlanEvent(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
+	switch commandID {
 	case 0: // StartingErrorEvent - Event of flight plan start error
 		{
-			err = b.sendEmptyTelemetry("startingerrorevent")
+			err = b.sendEmptyTelemetry(bbtelem.Startingerrorevent)
 			if err != nil {
 				return true, "StartingErrorEvent", err
 			}
 		}
 	case 1: // SpeedBridleEvent - Bridle speed of the drone
 		{
-			err = b.sendEmptyTelemetry("speedbridleevent")
+			err = b.sendEmptyTelemetry(bbtelem.Speedbridleevent)
 			if err != nil {
 				return true, "SpeedBridleEvent", err
 			}
@@ -322,7 +324,7 @@ func (b *Bebop) handleFlightPlanEvent(commandId byte, frame *NetworkFrame) (foun
 }
 
 // TODO: Handle! ARCOMMANDS_ID_COMMON_CLASS_SETTINGSSTATE
-func (b *Bebop) handleEventCommonSettingsState(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+func (b *Bebop) handleEventCommonSettingsState(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
 	return false, "", nil
 	// ARCOMMANDS_ID_COMMON_SETTINGSSTATE_CMD_ALLSETTINGSCHANGED = 0
 	// ARCOMMANDS_ID_COMMON_SETTINGSSTATE_CMD_PRODUCTNAMECHANGED = 2
@@ -333,12 +335,12 @@ func (b *Bebop) handleEventCommonSettingsState(commandId byte, frame *NetworkFra
 	// ARCOMMANDS_ID_COMMON_SETTINGSSTATE_CMD_AUTOCOUNTRYCHANGED = 7
 }
 
-func (b *Bebop) handleNetworkFrame(commandId byte, frame *NetworkFrame) (found bool, context string, err error) {
+func (b *Bebop) handleNetworkFrame(commandID byte, frame *NetworkFrame) (found bool, context string, err error) {
 	// Single-command Class
-	if commandId != 0 {
+	if commandID != 0 {
 		return false, "", nil
 	}
-	err = b.sendEmptyTelemetry("networkdisconnect")
+	err = b.sendEmptyTelemetry(bbtelem.Networkdisconnect)
 	if err != nil {
 		return true, "NetworkDisconnect", err
 	}

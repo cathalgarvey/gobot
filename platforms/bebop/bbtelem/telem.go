@@ -36,6 +36,9 @@ var (
 	Timelapsechanged        = "bebop:timelapsechanged"
 	Videoautorecordchanged  = "bebop:videoautorecordchanged"
 
+	// Camera Command Set: These shouldn't be sent but sometimes seem to? May be an error.
+	Orientation = "bebop:orientation"
+
 	/// Behaviour
 	Maxaltitudechanged          = "bebop:maxaltitudechanged"
 	Maxtiltchanged              = "bebop:maxtiltchanged"
@@ -60,6 +63,7 @@ var (
 	Gpsfixstatechanged          = "bebop:gpsfixstatechanged"
 	Gpsupdatestatechanged       = "bebop:gpsupdatestatechanged"
 	Hometypechanged             = "bebop:hometypechanged"
+	Returnhomedelaychanged      = "bebop:returnhomedelaychanged"
 
 	/// Network
 	Networkdisconnect          = "bebop:networkdisconnect"
@@ -91,3 +95,87 @@ var (
 	Altitude   = "bebop:altitude"
 	Wifisignal = "bebop:wifisignal"
 )
+
+// PacketTypes is a slice of all static packets included here; it's just a way
+// to check if an event belongs to this package.
+var PacketTypes = []string{
+	Unknown,
+	Unknownproject,
+	Error,
+
+	// Gross state telemetry; important enough that this enum got broken out. :)
+	Landed,
+	Takingoff,
+	Hovering,
+	Flying,
+	Landing,
+	Emergency,
+
+	// Introspective telemetry
+
+	/// Camera
+	Allstateschanged,
+	Camerastate,
+	Camerasettingsstate,
+	Pictureformatchanged,
+	Autowhitebalancechanged,
+	Expositionchanged,
+	Saturationchanged,
+	Timelapsechanged,
+	Videoautorecordchanged,
+
+	/// Behaviour
+	Maxaltitudechanged,
+	Maxtiltchanged,
+	Absolutcontrolchanged,
+	Maxdistancechanged,
+	Noflyovermaxdistancechanged,
+	Maxverticalspeedchanged,
+	Maxrotationspeedchanged,
+	Hullprotectionchanged,
+	Outdoorchanged,
+	Flattrim,
+	Navigatehomestate,
+	Alertstate,
+	Autotakeoffmode,
+	Networksettingsstate,
+	Mavlinkfileplaying,
+	Availabilitystatechanged,
+	Startingerrorevent,
+	Speedbridleevent,
+	Sethomechanged,
+	Resethomechanged,
+	Gpsfixstatechanged,
+	Gpsupdatestatechanged,
+	Hometypechanged,
+
+	/// Network
+	Networkdisconnect,
+	Wifiscanlistchanged,
+	Allwifiscanchanged,
+	Wifiauthchannellistchanged,
+	Allwifiauthchannelchanged,
+
+	/// Assets
+	Battery,
+	Massstorage,
+	Massstorageinfo,
+	Massstorageinforemaining,
+	Sensorstates,
+
+	/// Factoids
+	Currentdate,
+	Currenttime,
+	Dronemodel,
+	Countrycodes,
+	Controllerlibversion,
+	Skycontrollerlibversion,
+	Devicelibversion,
+
+	// Extrospective telemetry
+	Gps,
+	Speed,
+	Attitude,
+	Altitude,
+	Wifisignal,
+}

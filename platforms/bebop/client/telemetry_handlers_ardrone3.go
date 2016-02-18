@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 // The "Camera" set are commands, not telemetry, so unsure why it's sending with
@@ -20,7 +22,7 @@ func (b *Bebop) handleCameraFrame(commandId byte, frame *NetworkFrame) (found bo
 			if err != nil {
 				return true, "Orientation", err
 			}
-			err = b.sendJSONTelemetry(frame, "orientation", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Orientation, telemdata)
 			if err != nil {
 				return true, "Orientation", err
 			}
@@ -41,7 +43,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLATTRIMCHANGED:
 		{
 			// No args. Very often.
-			err = b.sendEmptyTelemetry("flattrim")
+			err = b.sendEmptyTelemetry(bbtelem.Flattrim)
 			if err != nil {
 				return true, "FlatTrimChanged", err
 			}
@@ -49,12 +51,20 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 	// Flying state changed
 	case ARCOMMANDS_ID_ARDRONE3_PILOTINGSTATE_CMD_FLYINGSTATECHANGED:
 		{
-			states := []string{"landed",
-				"takingoff",
-				"hovering",
-				"flying",
-				"landing",
-				"emergency"}
+			/*states := []string{"landed",
+			"takingoff",
+			"hovering",
+			"flying",
+			"landing",
+			"emergency"}  //*/
+			states := []string{
+				bbtelem.Landed,    // "bebop:landed"
+				bbtelem.Takingoff, // "bebop:takingoff"
+				bbtelem.Hovering,  // "bebop:hovering"
+				bbtelem.Flying,    // "bebop:flying"
+				bbtelem.Landing,   // "bebop:landing"
+				bbtelem.Emergency, // "bebop:emergency"
+			}
 			flyingstate, err := decodeEnum(frame.Data[4:8], states)
 			if err != nil {
 				return true, "FlyingStateChanged", err
@@ -71,7 +81,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "AlertStateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "alertstate", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Alertstate, struct {
 				State string `json:"state"`
 			}{State: statestr})
 			if err != nil {
@@ -89,7 +99,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "NavigateHomeStateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "navigatehomestate", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Navigatehomestate, struct {
 				State  string `json:"state"`
 				Reason string `json:"reason"`
 			}{
@@ -111,7 +121,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "PositionChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "gps", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Gps, telemdata)
 			if err != nil {
 				return true, "PositionChanged", err
 			}
@@ -128,7 +138,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "SpeedChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "speed", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Speed, telemdata)
 			if err != nil {
 				return true, "SpeedChanged", err
 			}
@@ -145,7 +155,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "AttitudeChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "attitude", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Attitude, telemdata)
 			if err != nil {
 				return true, "AttitudeChanged", err
 			}
@@ -160,7 +170,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "AutoTakeoffModeChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "autotakeoffmode", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Autotakeoffmode, telemdata)
 			if err != nil {
 				return true, "AutoTakeoffModeChanged", err
 			}
@@ -175,7 +185,7 @@ func (b *Bebop) handlePilotingStateFrame(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "AltitudeChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "altitude", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Altitude, telemdata)
 			if err != nil {
 				return true, "AltitudeChanged", err
 			}
@@ -207,7 +217,7 @@ func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "MaxAltitudeChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "maxaltitudechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Maxaltitudechanged, telemdata)
 			if err != nil {
 				return true, "MaxAltitudeChanged", err
 			}
@@ -224,7 +234,7 @@ func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "MaxTiltChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "maxtiltchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Maxtiltchanged, telemdata)
 			if err != nil {
 				return true, "MaxTiltChanged", err
 			}
@@ -239,7 +249,7 @@ func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "AbsolutControlChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "absolutcontrolchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Absolutcontrolchanged, telemdata)
 			if err != nil {
 				return true, "AbsolutControlChanged", err
 			}
@@ -256,7 +266,7 @@ func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "MaxDistanceChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "maxdistancechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Maxdistancechanged, telemdata)
 			if err != nil {
 				return true, "MaxDistanceChanged", err
 			}
@@ -272,7 +282,7 @@ func (b *Bebop) handlePilotingSettingsState(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "NoFlyOverMaxDistanceChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "noflyovermaxdistancechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Noflyovermaxdistancechanged, telemdata)
 			if err != nil {
 				return true, "NoFlyOverMaxDistanceChanged", err
 			}
@@ -319,7 +329,7 @@ func (b *Bebop) handleSpeedSettingsState(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "MaxVerticalSpeedChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "maxverticalspeedchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Maxverticalspeedchanged, telemdata)
 			if err != nil {
 				return true, "MaxVerticalSpeedChanged", err
 			}
@@ -336,7 +346,7 @@ func (b *Bebop) handleSpeedSettingsState(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "MaxRotationSpeedChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "maxrotationspeedchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Maxrotationspeedchanged, telemdata)
 			if err != nil {
 				return true, "MaxRotationSpeedChanged", err
 			}
@@ -351,7 +361,7 @@ func (b *Bebop) handleSpeedSettingsState(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "HullProtectionChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "hullprotectionchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Hullprotectionchanged, telemdata)
 			if err != nil {
 				return true, "HullProtectionChanged", err
 			}
@@ -366,7 +376,7 @@ func (b *Bebop) handleSpeedSettingsState(commandId byte, frame *NetworkFrame) (f
 			if err != nil {
 				return true, "OutdoorChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "outdoorchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Outdoorchanged, telemdata)
 			if err != nil {
 				return true, "OutdoorChanged", err
 			}
@@ -396,12 +406,12 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
 			case 0:
 				{
 					EventName = "SetHomeChanged"
-					EventTitle = "sethomechanged"
+					EventTitle = bbtelem.Sethomechanged
 				}
 			case 1:
 				{
 					EventName = "ResetHomeChanged"
-					EventTitle = "resethomechanged"
+					EventTitle = bbtelem.Resethomechanged
 				}
 			}
 			err = binary.Read(bytes.NewReader(frame.Data[4:28]), binary.LittleEndian, &telemdata)
@@ -422,7 +432,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "GPSFixStateChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "gpsfixstatechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Gpsfixstatechanged, telemdata)
 			if err != nil {
 				return true, "GPSFixStateChanged", err
 			}
@@ -436,7 +446,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
 			telemdata := struct {
 				State string `json:"state"`
 			}{state}
-			err = b.sendJSONTelemetry(frame, "gpsupdatestatechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Gpsupdatestatechanged, telemdata)
 			if err != nil {
 				return true, "GPSUpdateStateChanged", err
 			}
@@ -450,7 +460,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
 			telemdata := struct {
 				Type string `json:"type"`
 			}{state}
-			err = b.sendJSONTelemetry(frame, "hometypechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Hometypechanged, telemdata)
 			if err != nil {
 				return true, "HomeTypeChanged", err
 			}
@@ -464,7 +474,7 @@ func (b *Bebop) handleGPSSettingsStateFrame(commandId byte, frame *NetworkFrame)
 			if err != nil {
 				return true, "ReturnHomeDelayChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "returnhomedelaychanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Returnhomedelaychanged, telemdata)
 			if err != nil {
 				return true, "ReturnHomeDelayChanged", err
 			}
@@ -487,7 +497,7 @@ func (b *Bebop) handleCameraStateFrame(commandId byte, frame *NetworkFrame) (fou
 			if err != nil {
 				return true, "CameraState", err
 			}
-			err = b.sendJSONTelemetry(frame, "camerastate", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Camerastate, telemdata)
 			if err != nil {
 				return true, "CameraState", err
 			}
@@ -520,7 +530,7 @@ func (b *Bebop) handleNetworkSettingsStateFrame(commandId byte, frame *NetworkFr
 			if err != nil {
 				return true, "WifiSelectionChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "networksettingsstate", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Networksettingsstate, struct {
 				Type    string `json:"type"`
 				Band    string `json:"band"`
 				Channel int    `json:"channel"`
@@ -547,7 +557,7 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 			if err != nil {
 				return true, "PictureFormatChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "pictureformatchanged", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Pictureformatchanged, struct {
 				Type string `json:"type"`
 			}{Type: types})
 			if err != nil {
@@ -560,7 +570,7 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 			if err != nil {
 				return true, "AutoWhiteBalanceChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "autowhitebalancechanged", struct {
+			err = b.sendJSONTelemetry(frame, bbtelem.Autowhitebalancechanged, struct {
 				Type string `json:type`
 			}{Type: types})
 			if err != nil {
@@ -583,14 +593,14 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 			switch commandId {
 			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_EXPOSITIONCHANGED:
 				{
-					err = b.sendJSONTelemetry(frame, "expositionchanged", telemdata)
+					err = b.sendJSONTelemetry(frame, bbtelem.Expositionchanged, telemdata)
 					if err != nil {
 						return true, "ExpositionChanged", err
 					}
 				}
 			case ARCOMMANDS_ARDRONE3_PICTURESETTINGSSTATECHANGED_STATE_SATURATIONCHANGED:
 				{
-					err = b.sendJSONTelemetry(frame, "saturationchanged", telemdata)
+					err = b.sendJSONTelemetry(frame, bbtelem.Saturationchanged, telemdata)
 					if err != nil {
 						return true, "SaturationChanged", err
 					}
@@ -609,7 +619,7 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 			if err != nil {
 				return true, "TimeLapseChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "timelapsechanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Timelapsechanged, telemdata)
 			if err != nil {
 				return true, "TimeLapseChanged", err
 			}
@@ -624,7 +634,7 @@ func (b *Bebop) handlePictureSettingsStateFrame(commandId byte, frame *NetworkFr
 			if err != nil {
 				return true, "VideoAutoRecordChanged", err
 			}
-			err = b.sendJSONTelemetry(frame, "videoautorecordchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Videoautorecordchanged, telemdata)
 			if err != nil {
 				return true, "VideoAutoRecordChanged", err
 			}
@@ -664,14 +674,14 @@ func (b *Bebop) handleNetworkStateFrame(commandId byte, frame *NetworkFrame) (fo
 				Band    string `json:"band"`
 				Channel uint8  `json:"channel"`
 			}{Ssid, Rssi, Band, Channel}
-			err = b.sendJSONTelemetry(frame, "wifiscanlistchanged", telemdata)
+			err = b.sendJSONTelemetry(frame, bbtelem.Wifiscanlistchanged, telemdata)
 			if err != nil {
 				return true, "WifiScanListChanged", err
 			}
 		}
 	case 1: // AllWifiScanChanged - Sent when WifiScanListChanged events are finished?
 		{
-			err = b.sendEmptyTelemetry("allwifiscanchanged")
+			err = b.sendEmptyTelemetry(bbtelem.Allwifiscanchanged)
 			if err != nil {
 				return true, "AllWifiScanChanged", err
 			}
@@ -682,7 +692,7 @@ func (b *Bebop) handleNetworkStateFrame(commandId byte, frame *NetworkFrame) (fo
 			var (
 				Band           string
 				Channel        uint8
-				In_or_out      uint8
+				InOrOut        uint8
 				AllowedOutside bool
 				AllowedInside  bool
 			)
@@ -691,17 +701,17 @@ func (b *Bebop) handleNetworkStateFrame(commandId byte, frame *NetworkFrame) (fo
 				return true, "WifiAuthChannelListChanged", err
 			}
 			Channel = uint8(frame.Data[8])
-			In_or_out = uint8(frame.Data[9])
-			AllowedOutside = 0 < (In_or_out & 1)
-			AllowedInside = 0 < (In_or_out & 2)
+			InOrOut = uint8(frame.Data[9])
+			AllowedOutside = 0 < (InOrOut & 1)
+			AllowedInside = 0 < (InOrOut & 2)
 			telemdata := struct {
 				Band           string `json:"band"`
 				Channel        uint8  `json:"channel"`
-				In_or_out      uint8  `json:"in_or_out"`
+				InOrOut        uint8  `json:"in_or_out"`
 				AllowedOutside bool   `json:"allowedOutside"`
 				AllowedInside  bool   `json:"allowedInside"`
-			}{Band, Channel, In_or_out, AllowedOutside, AllowedInside}
-			err = b.sendJSONTelemetry(frame, "wifiauthchannellistchanged", telemdata)
+			}{Band, Channel, InOrOut, AllowedOutside, AllowedInside}
+			err = b.sendJSONTelemetry(frame, bbtelem.Wifiauthchannellistchanged, telemdata)
 			if err != nil {
 				return true, "WifiAuthChannelListChanged", err
 			}
@@ -709,7 +719,7 @@ func (b *Bebop) handleNetworkStateFrame(commandId byte, frame *NetworkFrame) (fo
 	case 3:
 		{
 			// AllWifiAuthChannelChanged, sent when authorised list is fully sent.
-			err = b.sendEmptyTelemetry("allwifiauthchannelchanged")
+			err = b.sendEmptyTelemetry(bbtelem.Allwifiauthchannelchanged)
 			if err != nil {
 				return true, "AllWifiAuthChannelChanged", err
 			}

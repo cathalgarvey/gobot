@@ -188,7 +188,7 @@ func (b *Bebop) sendEmptyTelemetry(title string) error {
 // Shortcut method for sending unknown data embedded in a JSON object as {"data": "<base64>"}
 func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) error {
 	return b.dispatchTelemetry(&bbtelem.TelemetryPacket{
-		Title:   "unknown",
+		Title:   bbtelem.Unknown, // "unknown",
 		Comment: comment,
 		Payload: data,
 	})
@@ -197,7 +197,7 @@ func (b *Bebop) sendUnknownTelemetry(comment string, data []byte) error {
 // Shortcut method for issuing errors through Telemetry
 func (b *Bebop) sendRuntimeError(comment string, err error, data []byte) error {
 	internalErr := b.dispatchTelemetry(&bbtelem.TelemetryPacket{
-		Title:   "error",
+		Title:   bbtelem.Error, // "error",
 		Error:   err,
 		Comment: comment,
 		Payload: data,
