@@ -96,9 +96,9 @@ var (
 	Wifisignal = "bebop:wifisignal"
 )
 
-// PacketTypes is a slice of all static packets included here; it's just a way
+// AllEvents is a slice of all static packets included here; it's just a way
 // to check if an event belongs to this package.
-var PacketTypes = []string{
+var AllEvents = []string{
 	Unknown,
 	Unknownproject,
 	Error,

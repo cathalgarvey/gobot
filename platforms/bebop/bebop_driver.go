@@ -2,87 +2,12 @@ package bebop
 
 import (
 	"github.com/hybridgroup/gobot"
+	"github.com/hybridgroup/gobot/platforms/bebop/bbtelem"
 )
 
 var (
 	// TODO: Documentation as to what this achieves would be nice..
 	_ gobot.Driver = (*Driver)(nil)
-	// BebopEvents is a non-exhaustive list of events that may be posted by
-	// an active Bebop object. TODO: Namespace these in-string for sanity?
-	BebopEvents = []string{
-		// Generic events
-		"unknown",
-		"unknownProject",
-		"error",
-		// Gross state telemetry; important enough that this enum got broken out. :)
-		"landed",
-		"takingoff",
-		"hovering",
-		"flying",
-		"landing",
-		"emergency",
-		// Introspective telemetry
-		/// Camera
-		"allstateschanged",
-		"camerastate",
-		"camerasettingsstate",
-		"pictureformatchanged",
-		"autowhitebalancechanged",
-		"expositionchanged",
-		"saturationchanged",
-		"timelapsechanged",
-		"videoautorecordchanged",
-		/// Behaviour
-		"maxaltitudechanged",
-		"maxtiltchanged",
-		"absolutcontrolchanged",
-		"maxdistancechanged",
-		"noflyovermaxdistancechanged",
-		"maxverticalspeedchanged",
-		"maxrotationspeedchanged",
-		"hullprotectionchanged",
-		"outdoorchanged",
-		"flattrim",
-		"navigatehomestate",
-		"alertstate",
-		"autotakeoffmode",
-		"networksettingsstate",
-		"mavlinkfileplaying",
-		"availabilitystatechanged",
-		"startingerrorevent",
-		"speedbridleevent",
-		"sethomechanged",
-		"resethomechanged",
-		"gpsfixstatechanged",
-		"gpsupdatestatechanged",
-		"hometypechanged",
-		/// Network
-		"networkdisconnect",
-		"wifiscanlistchanged",        // Sent one for each wifi scanned?
-		"allwifiscanchanged",         // Sent when above frames are all sent
-		"wifiauthchannellistchanged", // Sent to indicate for 2.4/5ghz channels which are permitted, and where (indoors/outdoors)
-		"allwifiauthchannelchanged",  // Sent to indicate device is finished sending the above?
-		/// Assets
-		"battery",
-		"massstorage",
-		"massstorageinfo",
-		"massstorageinforemaining",
-		"sensorstates",
-		/// Factoids
-		"currentdate",
-		"currenttime",
-		"dronemodel",
-		"countrycodes",
-		"controllerlibversion",
-		"skycontrollerlibversion",
-		"devicelibversion",
-		// Extrospective telemetry
-		"gps",
-		"speed",
-		"attitude",
-		"altitude",
-		"wifisignal",
-	}
 )
 
 // Driver is gobot.Driver representation for the Bebop
@@ -101,7 +26,7 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *Driver {
 		Eventer:      gobot.NewEventer(),
 		endTelemetry: make(chan struct{}),
 	}
-	for _, e := range BebopEvents {
+	for _, e := range bbtelem.AllEvents {
 		e := e
 		d.AddEvent(e)
 	}
@@ -111,7 +36,7 @@ func NewBebopDriver(connection *BebopAdaptor, name string) *Driver {
 // Debug registers a given function to subscribe to all known Bebop Events,
 // including "unknown" and "error"
 func (a *Driver) Debug(f func(string, []byte)) {
-	for _, e := range BebopEvents {
+	for _, e := range bbtelem.AllEvents {
 		e := e
 		gobot.On(a.Event(e), func(data interface{}) {
 			switch t := data.(type) {

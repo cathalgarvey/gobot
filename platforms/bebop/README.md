@@ -27,7 +27,7 @@ func main() {
 
 	work := func() {
     drone.HullProtection(true)
-		gobot.On(drone.Event("flying"), func(data interface{}) {
+		gobot.On(drone.Event("bebop:flying"), func(data interface{}) {
 			gobot.After(3*time.Second, func() {
 				drone.Land()
 			})
@@ -49,3 +49,5 @@ func main() {
 ## How to Connect
 
 The Bebop is a WiFi device, so there is no additional work to establish a connection to a single drone. However, in order to connect to multiple drones, you need to perform some configuration steps on each drone via SSH.
+
+Bebop now has (incomplete) telemetry support, and Gobot events will be posted by the driver for many types of onboard event. Events that may be posted (where supported) are provided as a slice of strings as `bebop.BebopEvents`. Events are all prefixed with "bebop:" so that autoposted events from Bebop drivers won't clutter or clobber the event system for other robots.
